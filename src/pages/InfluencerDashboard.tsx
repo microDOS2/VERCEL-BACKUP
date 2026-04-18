@@ -13,7 +13,6 @@ import {
   Check,
   LogOut,
   Package,
-  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -211,16 +210,12 @@ export function InfluencerDashboard() {
               </div>
               <div className="flex items-center gap-3">
                 {activeTab === 'products' && (
-                  <a
-                    href="https://for-microdos-2-u-site-vercel.vercel.app/#/products"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <Link to="/products">
                     <Button variant="outline" className="border-white/10 text-gray-300 hover:bg-white/5">
-                      <ExternalLink className="w-4 h-4 mr-2" />
+                      <Package className="w-4 h-4 mr-2" />
                       Full Catalog
                     </Button>
-                  </a>
+                  </Link>
                 )}
                 <div className="w-10 h-10 bg-gradient-to-br from-[#9a02d0] to-[#44f80c] rounded-full flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-white" />
