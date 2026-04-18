@@ -152,16 +152,31 @@ export function Products() {
           variantMap.set(v.product_id, list);
         }
 
-        // Filter products: only show those that have at least one variant
-        const activeProducts = (dbProducts || []).filter((p: DBProduct) => {
+        // For products with no variants, create a default Individual variant from product data
+        const enrichedVariants = [...(dbVariants || [])];
+        for (const p of (dbProducts || [])) {
           const pv = variantMap.get(p.id);
-          return pv && pv.length > 0;
-        });
+          if (!pv || pv.length === 0) {
+            // Create default variant from product's own data
+            enrichedVariants.push({
+              id: `default-${p.id}`,
+              product_id: p.id,
+              tier: 'individual',
+              name: 'Individual',
+              quantity: 1,
+              total_pills: p.stock || 1,
+              sku: p.sku || `${p.id.slice(0, 8)}-001`,
+              msrp_price: p.retail_price || p.price * 2,
+              wholesaler_price: p.price * 1.5,
+              distributor_price: p.price,
+              in_stock: p.stock > 0,
+            });
+          }
+        }
 
         // Transform to frontend format
-        const allVariants = (dbVariants || []);
         const { products: transformedProducts, kit: transformedKit } =
-          transformToFrontend(activeProducts, allVariants);
+          transformToFrontend(dbProducts || [], enrichedVariants);
 
         setProducts(transformedProducts);
         setKit(transformedKit);
