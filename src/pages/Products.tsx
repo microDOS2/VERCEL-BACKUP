@@ -39,34 +39,20 @@ interface DBVariant {
   in_stock: boolean;
 }
 
-interface SiteSettingVariant {
-  product_id: string;
-  tier: string;
-  name: string;
-  quantity: number;
-  total_pills: number;
-  sku: string;
-  msrp_price: number;
-  wholesaler_price: number;
-  distributor_price: number;
-  in_stock: boolean;
-}
-
 function getFallbackRole(role: UserRole | undefined): UserRole {
-  if (role) return role;
-  return 'wholesaler';
+  return role || 'wholesaler';
 }
 
 function transformToFrontend(
   dbProducts: DBProduct[],
-  dbVariants: SiteSettingVariant[]
+  dbVariants: DBVariant[]
 ): { products: Product[]; kit: WholesalerStarterKit | null } {
   const kitProduct = dbProducts.find((p) => p.sku === 'MD2-KIT');
   const regularProducts = dbProducts.filter((p) => p.sku !== 'MD2-KIT');
 
   const products: Product[] = regularProducts.map((dbp) => {
-    const variants = dbVariants.filter((v) => v.product_id === dbp.id);
-    const firstVariant = variants[0];
+    const productVariants = dbVariants.filter((v) => v.product_id === dbp.id);
+    const firstVariant = productVariants[0];
     const basePillCount = firstVariant
       ? Math.round(firstVariant.total_pills / firstVariant.quantity)
       : 10;
@@ -77,7 +63,7 @@ function transformToFrontend(
       description: dbp.description || '',
       basePillCount,
       image: dbp.image_url || '/placeholder-box.png',
-      packagingOptions: variants.map((v) => ({
+      packagingOptions: productVariants.map((v) => ({
         id: v.sku,
         tier: v.tier as 'individual' | 'case' | 'master_case' | 'special',
         name: v.name,
@@ -96,17 +82,13 @@ function transformToFrontend(
 
   let kit: WholesalerStarterKit | null = null;
   if (kitProduct) {
-    const kitVariant = dbVariants.find((v) => v.product_id === kitProduct.id);
+    const kitVariants = dbVariants.filter((v) => v.product_id === kitProduct.id);
+    const kitVariant = kitVariants[0];
     kit = {
       id: kitProduct.id,
       name: kitProduct.name,
       description: kitProduct.description || 'Everything to get started selling microDOS(2)',
-      contents: {
-        boxes: 9,
-        starterCards: 7,
-        display: true,
-        placard: true,
-      },
+      contents: { boxes: 9, starterCards: 7, display: true, placard: true },
       totalPills: kitVariant?.total_pills || 104,
       pricing: {
         msrp: kitVariant?.msrp_price || kitProduct.retail_price || 474.65,
@@ -121,6 +103,16 @@ function transformToFrontend(
   return { products, kit };
 }
 
+// Fetch with timeout — prevents infinite loading if Supabase hangs
+function fetchWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Request timed out after ${ms / 1000}s`)), ms)
+    ),
+  ]);
+}
+
 export function Products() {
   const { user } = useAuth();
   const [view, setView] = useState<'grid' | 'table'>('grid');
@@ -133,76 +125,73 @@ export function Products() {
   const currentUserRole: UserRole = getFallbackRole(user?.role as UserRole);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
+    let cancelled = false;
 
-        // 1. Fetch products from Supabase
-        const { data: dbProducts, error: productsError } = await supabase
+    async function fetchData() {
+      // Always reset state on each attempt
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch products (with 10s timeout)
+        const productsPromise = supabase
           .from('products')
           .select('*')
           .eq('is_active', true)
           .order('name');
 
-        if (productsError) throw productsError;
+        const { data: dbProducts, error: productsError } = await fetchWithTimeout(productsPromise, 10000);
 
-        // 2. Try to fetch variants from product_variants table (future schema)
-        let dbVariants: SiteSettingVariant[] = [];
-        try {
-          const { data: variantsData, error: variantsError } = await supabase
-            .from('product_variants')
-            .select('*');
-          if (!variantsError && variantsData) {
-            dbVariants = variantsData.map((v: DBVariant) => ({
-              product_id: v.product_id,
-              tier: v.tier,
-              name: v.name,
-              quantity: v.quantity,
-              total_pills: v.total_pills,
-              sku: v.sku,
-              msrp_price: v.msrp_price,
-              wholesaler_price: v.wholesaler_price,
-              distributor_price: v.distributor_price,
-              in_stock: v.in_stock,
-            }));
-          }
-        } catch {
-          // product_variants table may not exist yet, fall back to site_settings
+        if (productsError) throw new Error(`Products error: ${productsError.message}`);
+
+        // Fetch variants from product_variants table (with 10s timeout)
+        const variantsPromise = supabase
+          .from('product_variants')
+          .select('*')
+          .order('sku');
+
+        const { data: dbVariants, error: variantsError } = await fetchWithTimeout(variantsPromise, 10000);
+
+        if (variantsError) throw new Error(`Variants error: ${variantsError.message}`);
+
+        if (cancelled) return;
+
+        // Build variant lookup map for O(1) access
+        const variantMap = new Map<string, DBVariant[]>();
+        for (const v of (dbVariants || [])) {
+          const list = variantMap.get(v.product_id) || [];
+          list.push(v);
+          variantMap.set(v.product_id, list);
         }
 
-        // 3. Fallback: fetch variants from site_settings
-        if (dbVariants.length === 0) {
-          const { data: setting, error: settingError } = await supabase
-            .from('site_settings')
-            .select('value')
-            .eq('key', 'product_variants')
-            .single();
+        // Filter products: only show those that have at least one variant
+        const activeProducts = (dbProducts || []).filter((p: DBProduct) => {
+          const pv = variantMap.get(p.id);
+          return pv && pv.length > 0;
+        });
 
-          if (!settingError && setting?.value) {
-            const val = setting.value as { variants?: SiteSettingVariant[] };
-            if (val.variants) {
-              dbVariants = val.variants;
-            }
-          }
-        }
+        // Transform to frontend format
+        const allVariants = (dbVariants || []);
+        const { products: transformedProducts, kit: transformedKit } =
+          transformToFrontend(activeProducts, allVariants);
 
-        // 4. Transform to frontend format
-        if (dbProducts && dbProducts.length > 0) {
-          const { products: transformedProducts, kit: transformedKit } =
-            transformToFrontend(dbProducts as DBProduct[], dbVariants);
-          setProducts(transformedProducts);
-          setKit(transformedKit);
-        }
-
-        setError(null);
+        setProducts(transformedProducts);
+        setKit(transformedKit);
       } catch (err: any) {
-        setError(err.message || 'Failed to load products');
+        console.error('[Products] Fetch failed:', err);
+        if (!cancelled) {
+          setError(err.message || 'Failed to load products. Please try again.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     fetchData();
+
+    return () => { cancelled = true; };
   }, []);
 
   // Filter products based on search
@@ -237,10 +226,8 @@ export function Products() {
       <div className="min-h-screen bg-[#0a0514] flex items-center justify-center">
         <div className="text-center max-w-md px-4">
           <Package className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">
-            Failed to load products
-          </h2>
-          <p className="text-gray-400 mb-4">{error}</p>
+          <h2 className="text-xl font-semibold text-white mb-2">Failed to load products</h2>
+          <p className="text-gray-400 mb-4 text-sm">{error}</p>
           <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-[#9a02d0] text-white rounded-lg hover:bg-[#7a01a8] transition-colors"
@@ -263,9 +250,7 @@ export function Products() {
               <Package className="w-8 h-8 text-[#9a02d0]" />
               <h1 className="text-3xl font-bold text-white">Product Catalog</h1>
             </div>
-            <p className="text-gray-400">
-              Browse our complete product line with wholesale pricing
-            </p>
+            <p className="text-gray-400">Browse our complete product line with wholesale pricing</p>
             {user?.role && (
               <p className="text-xs text-[#44f80c] mt-1 capitalize">
                 Viewing as: {user.role.replace('_', ' ')}
@@ -289,14 +274,9 @@ export function Products() {
           <div className="flex items-center gap-4">
             <ViewToggle view={view} onViewChange={setView} />
             <span className="text-gray-400 text-sm">
-              {filteredProducts.reduce(
-                (acc, p) => acc + p.packagingOptions.length,
-                0
-              )}{' '}
-              options
+              {filteredProducts.reduce((acc, p) => acc + p.packagingOptions.length, 0)} options
             </span>
           </div>
-
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <Input
@@ -313,11 +293,7 @@ export function Products() {
         {view === 'grid' ? (
           <div className="space-y-6">
             {filteredProducts.map((product) => (
-              <ProductAccordion
-                key={product.id}
-                product={product}
-                role={currentUserRole}
-              />
+              <ProductAccordion key={product.id} product={product} role={currentUserRole} />
             ))}
           </div>
         ) : (
@@ -332,9 +308,7 @@ export function Products() {
               {searchQuery ? 'No products found' : 'No products available'}
             </h3>
             <p className="text-gray-400">
-              {searchQuery
-                ? 'Try adjusting your search query'
-                : 'Products will appear once the catalog is configured'}
+              {searchQuery ? 'Try adjusting your search query' : 'Products will appear once the catalog is configured'}
             </p>
           </div>
         )}
