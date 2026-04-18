@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { downloadCSV, formatCurrency } from '@/lib/utils'
 import { Search, Download, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
@@ -79,30 +79,41 @@ export function ProductsPage() {
 
   const handleSave = async () => {
     const payload = {
-      ...formData,
+      name: formData.name,
+      description: formData.description || null,
       price: Number(formData.price),
       wholesaler_price: Number(formData.wholesaler_price),
       retail_price: Number(formData.retail_price),
       stock: Number(formData.stock),
       min_order: Number(formData.min_order),
+      sku: formData.sku || null,
       is_active: formData.is_active,
     }
     if (editingProduct) {
       const { error } = await supabase.from('products').update(payload).eq('id', editingProduct.id)
-      if (error) alert('Error: ' + error.message)
-      else { fetchProducts() }
-    } else {
-      // Insert and get the new product back so we can add variants immediately
-      const { data, error } = await supabase.from('products').insert([payload]).select().single()
       if (error) {
-        alert('Error: ' + error.message)
+        console.error('Update error:', error)
+        alert('Error updating product: ' + error.message)
+      } else {
+        fetchProducts()
+        if (activeTab === 'details') { setShowModal(false); setEditingProduct(null); resetForm() }
+      }
+    } else {
+      // Insert new product
+      const { data, error } = await supabase.from('products').insert([payload]).select()
+      if (error) {
+        console.error('Insert error:', error)
+        alert('Error creating product: ' + error.message)
         return
       }
-      if (data) {
-        // Load the new product into edit mode so variants can be added
-        setEditingProduct(data as Product)
+      const newProduct = data && data.length > 0 ? data[0] : null
+      if (newProduct) {
+        setEditingProduct(newProduct as Product)
         setActiveTab('variants')
         fetchProducts()
+      } else {
+        // Insert worked but couldn't fetch back — close modal and refresh
+        setShowModal(false); setEditingProduct(null); resetForm(); fetchProducts()
       }
     }
   }
@@ -236,8 +247,8 @@ export function ProductsPage() {
                 const pVariants = getProductVariants(p.id)
                 const isExpanded = expandedProduct === p.id
                 return (
-                  <>
-                    <tr key={p.id} className="hover:bg-white/5 transition-colors">
+                  <React.Fragment key={p.id}>
+                    <tr className="hover:bg-white/5 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-[#0a0514] border border-white/10 flex items-center justify-center text-lg">
@@ -278,7 +289,7 @@ export function ProductsPage() {
                     </tr>
                     {isExpanded && (
                       <tr key={`${p.id}-variants`}>
-                        <td colSpan={7} className="px-4 py-3 bg-[#0a0514]/50">
+                        <td colSpan={8} className="px-4 py-3 bg-[#0a0514]/50">
                           <div className="space-y-2">
                             <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Packaging Variants</p>
                             {pVariants.length === 0 ? (
@@ -314,7 +325,7 @@ export function ProductsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 )
               })}
             </tbody>
