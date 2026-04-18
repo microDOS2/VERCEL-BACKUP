@@ -179,7 +179,7 @@ export function LandingPage() {
                 <ContentLink href={contentLinks.bdnfNeuroplasticity} linkType="pdf" ariaLabel="Read Psilocybin Microdosers research PDF">
                   Enhances BDNF (Brain-Derived Neurotrophic Factor) stimulation, promoting synaptic
                   growth and neural connectivity
-                </ContentLink>.
+                </ContentLink>
               </p>
             </div>
           </div>
