@@ -15,6 +15,9 @@ export const contentLinks = {
 
   // "Enhances BDNF (Brain-Derived Neurotrophic Factor) stimulation..." → Psilocybin microdosers PDF
   bdnfNeuroplasticity: `${CONTENT_BASE_URL}/content-documents/psilocybin-microdosers.pdf`,
+
+  // MODERATE dosage card → low dose effects PDF
+  lowDoseEffects: `${CONTENT_BASE_URL}/content-documents/low-dose-effects.pdf`,
 } as const;
 
 export type ContentLinkKey = keyof typeof contentLinks;
