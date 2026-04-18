@@ -103,15 +103,7 @@ function transformToFrontend(
   return { products, kit };
 }
 
-// Fetch with timeout — prevents infinite loading if Supabase hangs
-function fetchWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Request timed out after ${ms / 1000}s`)), ms)
-    ),
-  ]);
-}
+
 
 export function Products() {
   const { user } = useAuth();
@@ -133,24 +125,20 @@ export function Products() {
       setError(null);
 
       try {
-        // Fetch products (with 10s timeout)
-        const productsPromise = supabase
+        // Fetch products
+        const { data: dbProducts, error: productsError } = await supabase
           .from('products')
           .select('*')
           .eq('is_active', true)
           .order('name');
 
-        const { data: dbProducts, error: productsError } = await fetchWithTimeout(productsPromise, 10000);
-
         if (productsError) throw new Error(`Products error: ${productsError.message}`);
 
-        // Fetch variants from product_variants table (with 10s timeout)
-        const variantsPromise = supabase
+        // Fetch variants from product_variants table
+        const { data: dbVariants, error: variantsError } = await supabase
           .from('product_variants')
           .select('*')
           .order('sku');
-
-        const { data: dbVariants, error: variantsError } = await fetchWithTimeout(variantsPromise, 10000);
 
         if (variantsError) throw new Error(`Variants error: ${variantsError.message}`);
 
