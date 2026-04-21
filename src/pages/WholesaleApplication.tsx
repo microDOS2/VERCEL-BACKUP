@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -461,12 +462,12 @@ export function WholesaleApplication() {
                       <Label htmlFor="password" className="text-gray-300">
                         Password <span className="text-red-400">*</span>
                       </Label>
-                      <Input
+                      <PasswordInput
                         id="password"
-                        type="password"
                         value={formData.password}
                         onChange={(e) => updateField('password', e.target.value)}
                         placeholder="••••••••"
+                        showLockIcon={false}
                         className={`bg-[#0a0514] text-white ${showErrors && errors.password ? 'border-red-500' : 'border-white/10'}`}
                       />
                       {showErrors && errors.password && (
@@ -477,12 +478,12 @@ export function WholesaleApplication() {
                       <Label htmlFor="confirmPassword" className="text-gray-300">
                         Confirm Password <span className="text-red-400">*</span>
                       </Label>
-                      <Input
+                      <PasswordInput
                         id="confirmPassword"
-                        type="password"
                         value={formData.confirmPassword}
                         onChange={(e) => updateField('confirmPassword', e.target.value)}
                         placeholder="••••••••"
+                        showLockIcon={false}
                         className={`bg-[#0a0514] text-white ${showErrors && errors.confirmPassword ? 'border-red-500' : 'border-white/10'}`}
                       />
                       {showErrors && errors.confirmPassword && (

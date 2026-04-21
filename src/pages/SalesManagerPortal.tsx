@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Users, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { Users, Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
@@ -124,17 +125,13 @@ export function SalesManagerPortal() {
                 <Label htmlFor="password" className="text-gray-300">
                   Password
                 </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 bg-[#0a0514] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#9a02d0]"
-                  />
-                </div>
+                <PasswordInput
+                  id="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-[#0a0514] border-white/10 text-white placeholder:text-gray-600 focus-visible:ring-[#9a02d0]"
+                />
               </div>
 
               <div className="flex items-center justify-between">
