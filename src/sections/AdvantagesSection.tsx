@@ -25,7 +25,7 @@ export function AdvantagesSection() {
       title: 'Vivid Visuals',
       badge: null,
       description:
-        'Bright, colorful OEVs and CEVs with geometric patterns. One of the most visual psychedelics available.',
+        'Bright, colorful Open Eye visuals and Closed Eye visuals with geometric patterns. One of the most visual psychedelics available.',
     },
     {
       title: 'Precise Dosing',

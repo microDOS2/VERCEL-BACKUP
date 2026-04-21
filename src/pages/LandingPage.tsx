@@ -279,7 +279,7 @@ export function LandingPage() {
                 <h4 className="text-lg font-bold">Vivid Visuals</h4>
               </div>
               <p className="text-gray-400 text-sm">
-                Bright, colorful OEVs and CEVs with geometric patterns. One of the most visual
+                Bright, colorful Open Eye visuals and Closed Eye visuals with geometric patterns. One of the most visual
                 psychedelics available.
               </p>
             </div>
