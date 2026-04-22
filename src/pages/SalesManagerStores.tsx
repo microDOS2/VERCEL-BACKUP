@@ -169,7 +169,7 @@ export function SalesManagerStores() {
     try {
       let query = supabase
         .from('wholesaler_store_locations')
-        .select('*, users:user_id(*)', { count: 'exact' })
+        .select('*', { count: 'exact' })
         .in('user_id', territoryAccountIds)
         .order(sortBy, { ascending: sortAsc });
 
@@ -182,9 +182,11 @@ export function SalesManagerStores() {
       if (error) {
         setError(error.message);
       } else {
+        // Client-side join since no FK exists
+        const userMap = new Map(users.map((u: any) => [u.id, u]));
         const transformed = (data || []).map((s: any) => ({
           ...s,
-          owner: s.users,
+          owner: userMap.get(s.user_id) || null,
         }));
         setStores(transformed);
         setTotalCount(count || 0);
