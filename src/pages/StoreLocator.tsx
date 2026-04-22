@@ -61,6 +61,21 @@ function MapBounds({ stores }: { stores: Store[] }) {
   return null;
 }
 
+// Map pan component - pans to selected store
+function MapPan({ selectedStore }: { selectedStore: Store | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (selectedStore) {
+      map.flyTo([selectedStore.lat, selectedStore.lng], 14, {
+        duration: 0.8,
+      });
+    }
+  }, [selectedStore, map]);
+
+  return null;
+}
+
 interface Store {
   id: string;
   name: string;
@@ -291,6 +306,7 @@ export function StoreLocator() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapBounds stores={filteredStores} />
+                <MapPan selectedStore={selectedStore} />
                 {filteredStores.map((store) => (
                   <Marker
                     key={store.id}
