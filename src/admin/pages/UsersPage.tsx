@@ -21,7 +21,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
-  Users, Plus, Search, Check, Copy, Store, UserPlus, Loader2, X
+  Users, Plus, Search, Check, Copy, Store, UserPlus, Loader2, X, Info
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { DBUser } from '@/lib/supabase'
@@ -60,20 +60,20 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Create user modal state
+  // Create user modal state (INTERNAL ROLES ONLY)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newUserName, setNewUserName] = useState('')
   const [newUserEmail, setNewUserEmail] = useState('')
   const [newUserRole, setNewUserRole] = useState('')
   const [creatingUser, setCreatingUser] = useState(false)
 
-  // Add account modal state
+  // Add account modal state (BUSINESS ACCOUNTS: Wholesaler/Distributor/Influencer)
   const [showAddAccountModal, setShowAddAccountModal] = useState(false)
   const [accountBusinessName, setAccountBusinessName] = useState('')
   const [accountContactName, setAccountContactName] = useState('')
   const [accountEmail, setAccountEmail] = useState('')
   const [accountPassword, setAccountPassword] = useState('')
-  const [accountType, setAccountType] = useState<'wholesaler' | 'distributor'>('wholesaler')
+  const [accountType, setAccountType] = useState<'wholesaler' | 'distributor' | 'influencer'>('wholesaler')
   const [accountPhone, setAccountPhone] = useState('')
   const [accountAddress, setAccountAddress] = useState('')
   const [accountCity, setAccountCity] = useState('')
@@ -113,9 +113,16 @@ export function UsersPage() {
       u.role.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  // ──── CREATE USER: Internal roles only (admin, sales_manager, sales_rep) ────
   const handleCreateUser = async () => {
     if (!newUserName || !newUserEmail || !newUserRole) {
       toast.error('Please fill in all fields')
+      return
+    }
+    // Block business roles from being created as standalone users
+    const blockedRoles = ['wholesaler', 'distributor', 'influencer']
+    if (blockedRoles.includes(newUserRole)) {
+      toast.error(`"${roleLabels[newUserRole]}" accounts must be created via "Add Business Account" (tied to a business)`)
       return
     }
     setCreatingUser(true)
@@ -124,7 +131,7 @@ export function UsersPage() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUserEmail,
         password,
-        options: { data: { business_name: newUserName } },
+        options: { data: { business_name: newUserName, role: newUserRole } },
       })
       if (authError || !authData.user) {
         toast.error(authError?.message || 'Failed to create user')
@@ -134,6 +141,7 @@ export function UsersPage() {
       const { error: dbError } = await supabase.from('users').insert({
         id: authData.user.id,
         email: newUserEmail,
+        full_name: newUserName,
         business_name: newUserName,
         role: newUserRole,
         status: 'approved',
@@ -157,9 +165,10 @@ export function UsersPage() {
     setCreatingUser(false)
   }
 
+  // ──── ADD ACCOUNT: Business accounts (wholesaler/distributor/influencer) ────
   const handleAddAccount = async () => {
-    if (!accountBusinessName || !accountContactName || !accountEmail || !accountPassword || !accountLicense) {
-      toast.error('Please fill in all required fields')
+    if (!accountBusinessName || !accountContactName || !accountEmail || !accountPassword || !accountLicense || !accountEin) {
+      toast.error('Please fill in all required fields (Business License # and EIN/TaxID # are mandatory)')
       return
     }
     setAddingAccount(true)
@@ -177,9 +186,10 @@ export function UsersPage() {
       const { error: dbError } = await supabase.from('users').insert({
         id: authData.user.id,
         email: accountEmail,
+        full_name: accountContactName,
         business_name: accountBusinessName,
         license_number: accountLicense,
-        ein: accountEin || null,
+        ein: accountEin,
         phone: accountPhone || null,
         address: accountAddress || null,
         city: accountCity || null,
@@ -194,7 +204,7 @@ export function UsersPage() {
         return
       }
       await fetchUsers()
-      toast.success(`${accountType === 'wholesaler' ? 'Wholesaler' : 'Distributor'} account created!`)
+      toast.success(`${roleLabels[accountType]} account created!`)
       setShowAddAccountModal(false)
       setGeneratedPassword(accountPassword)
       setShowPasswordModal(true)
@@ -241,6 +251,15 @@ export function UsersPage() {
     toast.success('Password copied')
   }
 
+  // Helper for account type label
+  const accountTypeLabel = () => {
+    switch (accountType) {
+      case 'wholesaler': return 'Wholesaler'
+      case 'distributor': return 'Distributor'
+      case 'influencer': return 'Influencer'
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -250,7 +269,7 @@ export function UsersPage() {
         </div>
         <div className="flex gap-2">
           <Button onClick={() => setShowAddAccountModal(true)} className="bg-gradient-to-r from-[#ff66c4] to-[#9a02d0] text-white">
-            <Store className="w-4 h-4 mr-1" /> Add Account
+            <Store className="w-4 h-4 mr-1" /> Add Business Account
           </Button>
           <Button onClick={() => setShowCreateModal(true)} className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white">
             <Plus className="w-4 h-4 mr-1" /> Create User
@@ -348,7 +367,7 @@ export function UsersPage() {
         </CardContent>
       </Card>
 
-      {/* Create User Modal */}
+      {/* ═══ CREATE USER MODAL — Internal roles only ═══ */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent className="bg-[#150f24] border border-white/10 text-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -357,7 +376,7 @@ export function UsersPage() {
               Create New User
             </DialogTitle>
             <DialogDescription className="text-gray-400">
-              Create a new account for a sales team member
+              Create a new account for an internal team member
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -376,13 +395,19 @@ export function UsersPage() {
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#150f24] border-white/10">
+                  {/* Internal team roles only */}
+                  <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="sales_manager">Sales Manager</SelectItem>
                   <SelectItem value="sales_rep">Sales Rep</SelectItem>
-                  <SelectItem value="wholesaler">Wholesaler</SelectItem>
-                  <SelectItem value="distributor">Distributor</SelectItem>
-                  <SelectItem value="influencer">Influencer</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Info message about business accounts */}
+              <div className="flex items-start gap-2 mt-2 p-2 bg-[#ff66c4]/10 border border-[#ff66c4]/20 rounded-lg">
+                <Info className="w-4 h-4 text-[#ff66c4] mt-0.5 shrink-0" />
+                <p className="text-xs text-[#ff66c4]">
+                  Wholesaler, Distributor, and Influencer accounts must be created via <strong>Add Business Account</strong> (tied to a business) or through the <strong>Applications</strong> page.
+                </p>
+              </div>
             </div>
             <Button onClick={handleCreateUser} disabled={creatingUser} className="w-full bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white">
               {creatingUser ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -392,7 +417,7 @@ export function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Account Modal */}
+      {/* ═══ ADD BUSINESS ACCOUNT MODAL — Wholesaler/Distributor/Influencer ═══ */}
       <Dialog open={showAddAccountModal} onOpenChange={setShowAddAccountModal}>
         <DialogContent className="bg-[#150f24] border border-white/10 text-white max-h-[90vh] overflow-y-auto max-w-2xl">
           <DialogHeader>
@@ -401,13 +426,13 @@ export function UsersPage() {
               Add Business Account
             </DialogTitle>
             <DialogDescription className="text-gray-400">
-              Create a new wholesaler or distributor account
+              Create a new business account tied to a licensed entity
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label className="text-gray-300">Account Type <span className="text-red-400">*</span></Label>
-              <div className="flex gap-4 mt-1">
+              <div className="flex gap-4 mt-1 flex-wrap">
                 <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${accountType === 'wholesaler' ? 'border-[#44f80c] bg-[#44f80c]/10' : 'border-white/10 hover:border-white/30'}`}>
                   <input type="radio" name="acct_type" value="wholesaler" checked={accountType === 'wholesaler'} onChange={() => setAccountType('wholesaler')} className="w-4 h-4 accent-[#44f80c]" />
                   <span className="text-white">Wholesaler</span>
@@ -415,6 +440,10 @@ export function UsersPage() {
                 <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${accountType === 'distributor' ? 'border-[#9a02d0] bg-[#9a02d0]/10' : 'border-white/10 hover:border-white/30'}`}>
                   <input type="radio" name="acct_type" value="distributor" checked={accountType === 'distributor'} onChange={() => setAccountType('distributor')} className="w-4 h-4 accent-[#9a02d0]" />
                   <span className="text-white">Distributor</span>
+                </label>
+                <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${accountType === 'influencer' ? 'border-[#ff66c4] bg-[#ff66c4]/10' : 'border-white/10 hover:border-white/30'}`}>
+                  <input type="radio" name="acct_type" value="influencer" checked={accountType === 'influencer'} onChange={() => setAccountType('influencer')} className="w-4 h-4 accent-[#ff66c4]" />
+                  <span className="text-white">Influencer</span>
                 </label>
               </div>
             </div>
@@ -440,11 +469,11 @@ export function UsersPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="text-gray-300">License Number <span className="text-red-400">*</span></Label>
+                <Label className="text-gray-300">Business License # <span className="text-red-400">*</span></Label>
                 <Input value={accountLicense} onChange={(e) => setAccountLicense(e.target.value)} placeholder="CA-PSY-001" className="bg-[#0a0514] border-white/10 text-white" />
               </div>
               <div>
-                <Label className="text-gray-300">EIN</Label>
+                <Label className="text-gray-300">EIN/TaxID # <span className="text-red-400">*</span></Label>
                 <Input value={accountEin} onChange={(e) => setAccountEin(e.target.value)} placeholder="12-3456789" className="bg-[#0a0514] border-white/10 text-white" />
               </div>
             </div>
@@ -463,7 +492,7 @@ export function UsersPage() {
             </div>
             <Button onClick={handleAddAccount} disabled={addingAccount} className="w-full bg-gradient-to-r from-[#ff66c4] to-[#9a02d0] text-white">
               {addingAccount ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Store className="w-4 h-4 mr-2" />}
-              Create {accountType === 'wholesaler' ? 'Wholesaler' : 'Distributor'} Account
+              Create {accountTypeLabel()} Account
             </Button>
           </div>
         </DialogContent>
