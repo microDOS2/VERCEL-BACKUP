@@ -86,41 +86,29 @@ export function ApplicationsPage() {
     const password = generatePassword()
 
     try {
-      // 1. Create Supabase auth user
-      // NOTE: signUp sends a welcome email. If rate limit is hit, we still get the user.
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: app.email,
-        password,
-        options: {
-          data: {
-            business_name: app.business_name,
-            role: app.account_type,
-          },
+      // 1. Create auth user via Edge Function (NO welcome email sent)
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-auth-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
+        body: JSON.stringify({
+          email: app.email,
+          password,
+          business_name: app.business_name,
+          role: app.account_type,
+        }),
       })
 
       let userId: string
 
-      // Check if we got a user back (rate limit may still return the user)
-      if (authData?.user?.id) {
-        userId = authData.user.id
-        if (authError && authError.message?.toLowerCase().includes('rate')) {
-          toast.info('Email rate limit reached — user created but welcome email not sent.')
-        }
-      } else if (authError) {
-        // Check if it's specifically a rate limit error
-        const msg = authError.message?.toLowerCase() || ''
-        if (msg.includes('rate') || msg.includes('over_email')) {
-          // Try to find the user that was already created
-          toast.error('Email rate limit exceeded. Please wait 1 hour before approving more applications.')
-          setActionLoading(null)
-          return
-        }
-        toast.error('Auth error: ' + authError.message)
-        setActionLoading(null)
-        return
+      if (resp.ok) {
+        const result = await resp.json()
+        userId = result.user.id
       } else {
-        toast.error('Failed to create auth user')
+        const err = await resp.json().catch(() => ({ error: 'Unknown error' }))
+        toast.error('Auth error: ' + (err.error || resp.statusText))
         setActionLoading(null)
         return
       }
@@ -342,11 +330,11 @@ export function ApplicationsPage() {
             </div>
 
             <div className="p-5 space-y-4">
-              {/* Email status notice */}
+              {/* No email sent notice */}
               <div className="bg-[#44f80c]/10 border border-[#44f80c]/20 rounded-lg p-3 flex items-center gap-3">
                 <Mail className="w-5 h-5 text-[#44f80c]" />
                 <p className="text-sm text-[#44f80c]">
-                  Account created for {approvedApp.email}. Share the password below — welcome email may be delayed due to rate limits.
+                  Account created for {approvedApp.email}. No welcome email sent — share the password below with the user.
                 </p>
               </div>
 
