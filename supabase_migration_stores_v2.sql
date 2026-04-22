@@ -1,30 +1,42 @@
 -- ============================================================
--- microDOS(2) Store Locator v2 Migration
--- Unifies store management into wholesaler_store_locations
--- Adds: updated_at, source, website columns + auto-trigger
--- Run ONCE in your Supabase SQL Editor:
--- https://supabase.com/dashboard/project/fildaxejimuvfrcqmoba/sql/new
+-- microDOS(2) Store Locator v2 - CREATE TABLE + Migration
+-- Run ONCE in your Supabase SQL Editor, then click Run
 -- ============================================================
 
--- 1. Add updated_at column with auto-update trigger
-ALTER TABLE wholesaler_store_locations
-ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+-- 1. Create wholesaler_store_locations table (if not exists)
+CREATE TABLE IF NOT EXISTS wholesaler_store_locations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    name TEXT,
+    address TEXT NOT NULL,
+    city TEXT,
+    state TEXT,
+    zip TEXT,
+    lat NUMERIC,
+    lng NUMERIC,
+    phone TEXT,
+    email TEXT,
+    website TEXT,
+    stock TEXT DEFAULT 'In Stock' CHECK (stock IN ('In Stock', 'Low Stock', 'Out of Stock')),
+    license_number TEXT,
+    is_primary BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    source TEXT DEFAULT 'wholesaler' CHECK (source IN ('wholesaler', 'admin', 'sales_manager')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- 2. Add source column to track who created the store
-ALTER TABLE wholesaler_store_locations
-ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'wholesaler'
-CHECK (source IN ('wholesaler', 'admin', 'sales_manager'));
+-- 2. Enable Row Level Security
+ALTER TABLE wholesaler_store_locations ENABLE ROW LEVEL SECURITY;
 
--- 3. Add website column for Store Locator display
-ALTER TABLE wholesaler_store_locations
-ADD COLUMN IF NOT EXISTS website TEXT;
+-- 3. RLS Policies
+CREATE POLICY IF NOT EXISTS "wsl_public_read"
+    ON wholesaler_store_locations FOR SELECT USING (true);
 
--- 3b. Add stock column for Store Locator inventory status
-ALTER TABLE wholesaler_store_locations
-ADD COLUMN IF NOT EXISTS stock TEXT DEFAULT 'In Stock'
-CHECK (stock IN ('In Stock', 'Low Stock', 'Out of Stock'));
+CREATE POLICY IF NOT EXISTS "wsl_admin_all"
+    ON wholesaler_store_locations FOR ALL USING (true) WITH CHECK (true);
 
--- 4. Auto-update trigger function
+-- 4. Auto-update trigger for updated_at
 CREATE OR REPLACE FUNCTION update_wsl_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -33,28 +45,33 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 5. Attach trigger to table
 DROP TRIGGER IF EXISTS trg_wsl_updated_at ON wholesaler_store_locations;
 CREATE TRIGGER trg_wsl_updated_at
     BEFORE UPDATE ON wholesaler_store_locations
     FOR EACH ROW EXECUTE FUNCTION update_wsl_timestamp();
 
--- 6. Backfill existing rows: set updated_at from created_at
-UPDATE wholesaler_store_locations
-SET updated_at = created_at
-WHERE updated_at IS NULL;
+-- 5. Migrate data from old stores table if it exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'stores') THEN
+        INSERT INTO wholesaler_store_locations (
+            user_id, name, address, phone, email, is_active, created_at, updated_at
+        )
+        SELECT 
+            COALESCE(
+                (SELECT id FROM users WHERE email = stores.email LIMIT 1),
+                '00000000-0000-0000-0000-000000000000'::uuid
+            ),
+            stores.name,
+            stores.address,
+            stores.phone,
+            stores.email,
+            true,
+            stores.created_at,
+            NOW()
+        FROM stores
+        WHERE NOT EXISTS (SELECT 1 FROM wholesaler_store_locations WHERE name = stores.name);
+    END IF;
+END $$;
 
--- 7. Ensure RLS policies allow admin and sales_manager access
-CREATE POLICY IF NOT EXISTS "wsl_admin_all"
-    ON wholesaler_store_locations FOR ALL
-    USING (true) WITH CHECK (true);
-
--- 8. Enable realtime for wholesaler_store_locations
--- (so StoreLocator can subscribe to live updates if needed)
--- Note: run this in the Supabase dashboard under Database > Realtime if needed
-
--- Done. The unified store table now supports:
--- - Auto-updating updated_at on every change
--- - Source tracking (wholesaler/admin/sales_manager)
--- - Website display on Store Locator
--- - Full CRUD for Admin and Sales Manager portals
+-- Done! The unified store table is ready.
