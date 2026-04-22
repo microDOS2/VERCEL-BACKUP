@@ -4,11 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, Loader2, Check, UserPlus, Building2, UserMinus } from 'lucide-react'
+import { Users, Loader2, Check, UserPlus, ChevronDown, ChevronRight, Store, MapPin, UserMinus } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-interface Account {
+interface StoreItem {
+  id: string
+  name: string
+  address: string
+  city: string
+  state: string
+  zip: string
+  store_number: string
+  assigned_rep_id: string | null
+  assigned_rep_name: string | null
+}
+
+interface AccountItem {
   id: string
   business_name: string
   email: string
@@ -19,6 +31,7 @@ interface Account {
   account_number: string
   assigned_rep_id: string | null
   assigned_rep_name: string | null
+  stores: StoreItem[]
 }
 
 interface SalesRep {
@@ -34,12 +47,15 @@ const roleBadge: Record<string, string> = {
   distributor: 'bg-[#ff66c4]/20 text-[#ff66c4]',
 }
 
-export function AssignmentsPage() {
-  const [accounts, setAccounts] = useState<Account[]>([])
+export function AccountsPage() {
+  const [accounts, setAccounts] = useState<AccountItem[]>([])
   const [reps, setReps] = useState<SalesRep[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRep, setSelectedRep] = useState<Record<string, string>>({})
+  const [selectedStoreRep, setSelectedStoreRep] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  const [savingStore, setSavingStore] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -53,11 +69,22 @@ export function AssignmentsPage() {
       .order('referral_code', { ascending: true })
 
     // 2. Fetch account-level assignments
-    const { data: assignData } = await supabase
+    const { data: acctAssignData } = await supabase
       .from('rep_account_assignments')
       .select('account_id, rep_id')
 
-    // 3. Fetch sales reps
+    // 3. Fetch all stores
+    const { data: storesData } = await supabase
+      .from('wholesaler_store_locations')
+      .select('*')
+      .order('name', { ascending: true })
+
+    // 4. Fetch store-level assignments
+    const { data: storeAssignData } = await supabase
+      .from('store_assignments')
+      .select('store_id, rep_id')
+
+    // 5. Fetch sales reps
     const { data: repsData } = await supabase
       .from('users')
       .select('id, business_name, email, city, state')
@@ -68,14 +95,45 @@ export function AssignmentsPage() {
     const repMap = new Map()
     ;(repsData || []).forEach((r: any) => repMap.set(r.id, r))
 
-    // Build assignment lookup
-    const assignmentMap = new Map()
-    ;(assignData || []).forEach((a: any) => assignmentMap.set(a.account_id, a.rep_id))
+    // Build account assignment lookup
+    const acctAssignMap = new Map()
+    ;(acctAssignData || []).forEach((a: any) => acctAssignMap.set(a.account_id, a.rep_id))
 
-    // Build account items
-    const accountItems: Account[] = (usersData || []).map((u: any) => {
-      const repId = assignmentMap.get(u.id)
-      const rep = repId ? repMap.get(repId) : null
+    // Build store assignment lookup
+    const storeAssignMap = new Map()
+    ;(storeAssignData || []).forEach((a: any) => storeAssignMap.set(a.store_id, a.rep_id))
+
+    // Group stores by user_id
+    const storesByUser = new Map<string, any[]>()
+    ;(storesData || []).forEach((s: any) => {
+      const list = storesByUser.get(s.user_id) || []
+      list.push(s)
+      storesByUser.set(s.user_id, list)
+    })
+
+    // Build account items with nested stores
+    const accountItems: AccountItem[] = (usersData || []).map((u: any) => {
+      const acctRepId = acctAssignMap.get(u.id)
+      const acctRep = acctRepId ? repMap.get(acctRepId) : null
+      const userStores = storesByUser.get(u.id) || []
+
+      const storeItems: StoreItem[] = userStores.map((s: any) => {
+        const storeRepId = storeAssignMap.get(s.id)
+        const storeRep = storeRepId ? repMap.get(storeRepId) : null
+        const m = s.name?.match(/^(\d+[a-z])\s*-\s*(.+)$/)
+        return {
+          id: s.id,
+          name: m ? m[2] : s.name,
+          address: s.address || '',
+          city: s.city || '',
+          state: s.state || '',
+          zip: s.zip || '',
+          store_number: m ? m[1] : '',
+          assigned_rep_id: storeRepId || null,
+          assigned_rep_name: storeRep ? (storeRep.business_name || storeRep.email) : null,
+        }
+      })
+
       return {
         id: u.id,
         business_name: u.business_name,
@@ -85,60 +143,79 @@ export function AssignmentsPage() {
         city: u.city,
         state: u.state,
         account_number: u.referral_code || '',
-        assigned_rep_id: repId || null,
-        assigned_rep_name: rep ? (rep.business_name || rep.email) : null,
+        assigned_rep_id: acctRepId || null,
+        assigned_rep_name: acctRep ? (acctRep.business_name || acctRep.email) : null,
+        stores: storeItems,
       }
     })
 
     setAccounts(accountItems)
     setReps((repsData || []).map((r: any) => ({
-      id: r.id,
-      business_name: r.business_name,
-      email: r.email,
-      city: r.city,
-      state: r.state,
+      id: r.id, business_name: r.business_name, email: r.email, city: r.city, state: r.state,
     })))
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const handleAssign = async (accountId: string) => {
+  // Account-level assignment
+  const handleAssignAccount = async (accountId: string) => {
     const repId = selectedRep[accountId]
     if (!repId) { toast.error('Select a Sales Rep first'); return }
     setSaving(accountId)
-
-    // Delete existing, then insert new (upsert workaround)
     await supabase.from('rep_account_assignments').delete().eq('account_id', accountId)
     const { error } = await supabase.from('rep_account_assignments').insert([{ account_id: accountId, rep_id: repId }])
-
     if (error) toast.error('Failed: ' + error.message)
-    else { toast.success('Rep assigned!'); fetchAll() }
+    else { toast.success('Account rep assigned!'); fetchAll() }
     setSaving(null)
   }
 
-  const handleUnassign = async (accountId: string) => {
-    if (!confirm('Remove rep assignment?')) return
+  const handleUnassignAccount = async (accountId: string) => {
+    if (!confirm('Remove account rep assignment?')) return
     const { error } = await supabase.from('rep_account_assignments').delete().eq('account_id', accountId)
     if (error) toast.error('Error: ' + error.message)
     else { toast.success('Unassigned'); fetchAll() }
   }
 
-  const assignedCount = accounts.filter(a => a.assigned_rep_id).length
-  const unassignedCount = accounts.filter(a => !a.assigned_rep_id).length
+  // Store-level assignment
+  const handleAssignStore = async (storeId: string) => {
+    const repId = selectedStoreRep[storeId]
+    if (!repId) { toast.error('Select a Sales Rep first'); return }
+    setSavingStore(storeId)
+    await supabase.from('store_assignments').delete().eq('store_id', storeId)
+    const { error } = await supabase.from('store_assignments').insert([{ store_id: storeId, rep_id: repId }])
+    if (error) toast.error('Failed: ' + error.message)
+    else { toast.success('Store rep assigned!'); fetchAll() }
+    setSavingStore(null)
+  }
+
+  const handleUnassignStore = async (storeId: string) => {
+    if (!confirm('Remove store rep assignment?')) return
+    const { error } = await supabase.from('store_assignments').delete().eq('store_id', storeId)
+    if (error) toast.error('Error: ' + error.message)
+    else { toast.success('Unassigned'); fetchAll() }
+  }
+
+  const toggleExpanded = (accountId: string) => {
+    setExpanded(prev => ({ ...prev, [accountId]: !prev[accountId] }))
+  }
+
+  const totalAssigned = accounts.filter(a => a.assigned_rep_id).length
+  const totalUnassigned = accounts.filter(a => !a.assigned_rep_id).length
+  const totalStores = accounts.reduce((sum, a) => sum + a.stores.length, 0)
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white mb-1">Account Assignments</h2>
-        <p className="text-gray-400">Assign Sales Reps to business accounts</p>
+        <h2 className="text-2xl font-bold text-white mb-1">Accounts</h2>
+        <p className="text-gray-400">{accounts.length} accounts, {totalStores} stores</p>
       </div>
 
       <Card className="bg-[#150f24] border-white/10">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-[#9a02d0]" />
-            Accounts ({accounts.length}) — {assignedCount} assigned, {unassignedCount} unassigned
+            Accounts ({totalAssigned} assigned, {totalUnassigned} unassigned)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -146,71 +223,139 @@ export function AssignmentsPage() {
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#9a02d0]" /></div>
           ) : accounts.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-              <p className="text-lg font-medium text-gray-400">No business accounts</p>
-              <p className="text-sm">Approve applications first</p>
+              <Users className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+              <p className="text-lg font-medium text-gray-400">No accounts</p>
             </div>
           ) : reps.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <UserPlus className="w-12 h-12 mx-auto mb-3 text-gray-600" />
               <p className="text-lg font-medium text-gray-400">No Sales Reps</p>
-              <p className="text-sm">Create Sales Rep accounts in User Management</p>
             </div>
           ) : (
             <div className="space-y-4">
               {accounts.map((acct) => (
-                <div key={acct.id} className="p-4 bg-[#0a0514] rounded-lg border border-white/10">
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-xs font-mono bg-[#9a02d0]/20 text-[#9a02d0] px-2 py-0.5 rounded">Acct #{acct.account_number}</span>
-                        <h4 className="text-white font-medium">{acct.business_name}</h4>
-                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full uppercase', roleBadge[acct.role] || 'bg-gray-500/20 text-gray-400')}>{acct.role}</span>
-                      </div>
-                      <p className="text-gray-400 text-sm">{acct.email}{acct.city && acct.state && ` • ${acct.city}, ${acct.state}`}</p>
-                      {acct.phone && <p className="text-gray-500 text-xs mt-0.5">{acct.phone}</p>}
-
-                      {acct.assigned_rep_name ? (
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge className="bg-[#44f80c]/20 text-[#44f80c]">
-                            <Users className="w-3 h-3 mr-1" /> Assigned to: {acct.assigned_rep_name}
-                          </Badge>
-                          <button onClick={() => handleUnassign(acct.id)} className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-0.5">
-                            <UserMinus className="w-3 h-3" /> Remove
-                          </button>
+                <div key={acct.id} className="bg-[#0a0514] rounded-lg border border-white/10 overflow-hidden">
+                  {/* Account header */}
+                  <div className="p-4">
+                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-xs font-mono bg-[#9a02d0]/20 text-[#9a02d0] px-2 py-0.5 rounded">Acct #{acct.account_number}</span>
+                          <h4 className="text-white font-medium text-lg">{acct.business_name}</h4>
+                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full uppercase', roleBadge[acct.role] || 'bg-gray-500/20 text-gray-400')}>{acct.role}</span>
                         </div>
-                      ) : (
-                        <Badge className="bg-gray-700 text-gray-400 mt-2">Unassigned</Badge>
-                      )}
-                    </div>
+                        <p className="text-gray-400 text-sm">{acct.email}{acct.city && acct.state && ` • ${acct.city}, ${acct.state}`}</p>
 
-                    <div className="flex items-center gap-2 w-full lg:w-auto">
-                      <Select
-                        value={selectedRep[acct.id] || acct.assigned_rep_id || ''}
-                        onValueChange={(val) => setSelectedRep(prev => ({ ...prev, [acct.id]: val }))}
-                      >
-                        <SelectTrigger className="w-56 bg-[#0a0514] border-white/10 text-white text-sm">
-                          <SelectValue placeholder="Select Rep" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#150f24] border-white/10">
-                          {reps.map(rep => (
-                            <SelectItem key={rep.id} value={rep.id}>
-                              {rep.business_name || rep.email}
-                              {rep.city && rep.state && ` — ${rep.city}, ${rep.state}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAssign(acct.id)}
-                        disabled={saving === acct.id}
-                        className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white"
-                      >
-                        {saving === acct.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                      </Button>
+                        {/* Account rep assignment */}
+                        {acct.assigned_rep_name ? (
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge className="bg-[#44f80c]/20 text-[#44f80c]">
+                              <Users className="w-3 h-3 mr-1" /> Account Rep: {acct.assigned_rep_name}
+                            </Badge>
+                            <button onClick={() => handleUnassignAccount(acct.id)} className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-0.5">
+                              <UserMinus className="w-3 h-3" /> Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <Badge className="bg-gray-700 text-gray-400 mt-2">Account Unassigned</Badge>
+                        )}
+
+                        {/* Store count + expand toggle */}
+                        {acct.stores.length > 0 && (
+                          <button
+                            onClick={() => toggleExpanded(acct.id)}
+                            className="flex items-center gap-1 text-sm text-[#9a02d0] hover:text-[#ff66c4] mt-2 transition-colors"
+                          >
+                            {expanded[acct.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            <Store className="w-4 h-4" />
+                            {acct.stores.length} store{acct.stores.length !== 1 ? 's' : ''}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Account rep selector */}
+                      <div className="flex items-center gap-2 w-full lg:w-auto">
+                        <Select
+                          value={selectedRep[acct.id] || acct.assigned_rep_id || ''}
+                          onValueChange={(val) => setSelectedRep(prev => ({ ...prev, [acct.id]: val }))}
+                        >
+                          <SelectTrigger className="w-56 bg-[#0a0514] border-white/10 text-white text-sm">
+                            <SelectValue placeholder="Select Account Rep" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#150f24] border-white/10">
+                            {reps.map(rep => (
+                              <SelectItem key={rep.id} value={rep.id}>{rep.business_name || rep.email}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAssignAccount(acct.id)}
+                          disabled={saving === acct.id}
+                          className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white"
+                        >
+                          {saving === acct.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                        </Button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Expandable stores section */}
+                  {expanded[acct.id] && acct.stores.length > 0 && (
+                    <div className="border-t border-white/10 px-4 pb-4">
+                      <div className="mt-3 space-y-3">
+                        {acct.stores.map((store) => (
+                          <div key={store.id} className="bg-[#150f24] rounded-lg p-3 border border-white/5">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="text-xs font-mono bg-[#ff66c4]/20 text-[#ff66c4] px-2 py-0.5 rounded">{store.store_number}</span>
+                                  <span className="text-white font-medium">{store.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-sm text-gray-400">
+                                  <MapPin className="w-3 h-3 text-gray-600" />
+                                  <span>{store.address}{store.city && `, ${store.city}`}{store.state && `, ${store.state}`}</span>
+                                </div>
+                                {store.assigned_rep_name ? (
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs">
+                                      <Users className="w-3 h-3 mr-1" /> Store Rep: {store.assigned_rep_name}
+                                    </Badge>
+                                    <button onClick={() => handleUnassignStore(store.id)} className="text-xs text-red-400 hover:text-red-300 underline">Remove</button>
+                                  </div>
+                                ) : (
+                                  <Badge className="bg-gray-700 text-gray-400 text-xs mt-1.5">Store Unassigned</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <Select
+                                  value={selectedStoreRep[store.id] || store.assigned_rep_id || ''}
+                                  onValueChange={(val) => setSelectedStoreRep(prev => ({ ...prev, [store.id]: val }))}
+                                >
+                                  <SelectTrigger className="w-48 bg-[#0a0514] border-white/10 text-white text-sm">
+                                    <SelectValue placeholder="Select Store Rep" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-[#150f24] border-white/10">
+                                    {reps.map(rep => (
+                                      <SelectItem key={rep.id} value={rep.id}>{rep.business_name || rep.email}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAssignStore(store.id)}
+                                  disabled={savingStore === store.id}
+                                  className="bg-gradient-to-r from-[#44f80c] to-[#9a02d0] text-white"
+                                >
+                                  {savingStore === store.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
