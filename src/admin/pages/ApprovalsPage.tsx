@@ -7,6 +7,7 @@ import { CheckCircle, Clock, MapPin, Globe, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface ApprovedAccount {
+  account_number?: string
   id: string
   business_name: string
   contact_name: string | null
@@ -79,6 +80,7 @@ export function ApprovalsPage() {
         ein: a.ein,
         website: a.website,
         account_type: a.account_type,
+        account_number: a.referral_code || '',
         business_type: a.business_type,
         volume_estimate: a.volume_estimate,
         reviewed_at: a.reviewed_at || a.submitted_at,
@@ -105,6 +107,7 @@ export function ApprovalsPage() {
           ein: u.ein,
           website: u.website,
           account_type: u.role,
+        account_number: u.referral_code || '',
           business_type: null,
           volume_estimate: u.volume_estimate,
           reviewed_at: u.updated_at || u.created_at,
@@ -175,6 +178,7 @@ export function ApprovalsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h4 className="text-white font-medium">{app.business_name}</h4>
+                        {app.account_number && <span className="text-xs font-mono bg-[#9a02d0]/20 text-[#9a02d0] px-2 py-0.5 rounded">Acct #{app.account_number}</span>}
                         <Badge className={typeBadgeClasses[app.account_type] || 'bg-gray-500/20 text-gray-400'}>
                           {app.account_type}
                         </Badge>
