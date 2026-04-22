@@ -51,27 +51,21 @@ export function AssignmentsPage() {
   const fetchAll = async () => {
     setLoading(true)
 
-    // 1. Fetch approved business accounts (wholesaler/distributor/influencer)
-    const { data: accountsData } = await supabase
-      .from('users')
-      .select('id, business_name, email, phone, role, city, state, status')
-      .eq('status', 'approved')
-      .in('role', ['wholesaler', 'distributor', 'influencer'])
-      .order('business_name', { ascending: true })
+    // 1. Fetch ALL users via RPC (bypasses RLS), then filter for business accounts
+    const { data: allUsers } = await supabase.rpc('get_all_users')
+    const accountsData = (allUsers || []).filter(
+      (u: any) => u.status === 'approved' && ['wholesaler', 'distributor', 'influencer'].includes(u.role)
+    )
 
-    // 2. Fetch all Sales Reps
-    const { data: repsData } = await supabase
-      .from('users')
-      .select('id, full_name, business_name, email, city, state')
-      .eq('role', 'sales_rep')
-      .eq('status', 'approved')
-      .order('business_name', { ascending: true })
+    // 2. Fetch Sales Reps from the same data
+    const repsData = (allUsers || []).filter(
+      (u: any) => u.role === 'sales_rep' && u.status === 'approved'
+    )
 
     // 3. Fetch existing assignments
-    const { data: assignData } = await supabase
-      .rpc('get_rep_assignments')
+    const { data: assignData } = await supabase.rpc('get_rep_assignments')
 
-    setAccounts((accountsData || []) as ApprovedAccount[])
+    setAccounts((accountsData || []) as unknown as ApprovedAccount[])
     setSalesReps((repsData || []) as unknown as DBUser[])
     setAssignments((assignData || []) as RepAssignment[])
     setLoading(false)
