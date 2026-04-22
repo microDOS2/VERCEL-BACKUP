@@ -5,11 +5,6 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Admin client uses service_role key for operations that bypass RLS
-// Only used in authenticated admin pages for assignment mutations
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpbGRheGVqaW11dmZyY3Ftb2JhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjEwODY5NSwiZXhwIjoyMDkxNjg0Njk1fQ.wPWto7KRhKYUFKxY5r3XiRknu1X-oSLke7DZl6hxMOc';
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
 export type UserRole = 'admin' | 'sales_manager' | 'sales_rep' | 'wholesaler' | 'distributor' | 'influencer';
 
 export interface Application {
