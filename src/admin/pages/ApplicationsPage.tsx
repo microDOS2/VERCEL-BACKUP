@@ -86,7 +86,8 @@ export function ApplicationsPage() {
     const password = generatePassword()
 
     try {
-      // 1. Create Supabase auth user (triggers welcome email automatically)
+      // 1. Create Supabase auth user
+      // NOTE: signUp sends a welcome email. If rate limit is hit, we still get the user.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: app.email,
         password,
@@ -98,39 +99,49 @@ export function ApplicationsPage() {
         },
       })
 
-      if (authError) {
-        // If user already exists, try admin.createUser via the existing sign-up flow
+      let userId: string
+
+      // Check if we got a user back (rate limit may still return the user)
+      if (authData?.user?.id) {
+        userId = authData.user.id
+        if (authError && authError.message?.toLowerCase().includes('rate')) {
+          toast.info('Email rate limit reached — user created but welcome email not sent.')
+        }
+      } else if (authError) {
+        // Check if it's specifically a rate limit error
+        const msg = authError.message?.toLowerCase() || ''
+        if (msg.includes('rate') || msg.includes('over_email')) {
+          // Try to find the user that was already created
+          toast.error('Email rate limit exceeded. Please wait 1 hour before approving more applications.')
+          setActionLoading(null)
+          return
+        }
         toast.error('Auth error: ' + authError.message)
         setActionLoading(null)
         return
-      }
-
-      if (!authData.user) {
+      } else {
         toast.error('Failed to create auth user')
         setActionLoading(null)
         return
       }
 
-      const userId = authData.user.id
-
-      // 2. Insert into users table with full business info
-      const { error: userError } = await supabase.from('users').insert({
-        id: userId,
-        email: app.email,
-        full_name: app.contact_name || app.business_name,
-        business_name: app.business_name,
-        role: app.account_type,
-        status: 'approved',
-        phone: app.phone,
-        address: app.address,
-        city: app.city,
-        state: app.state,
-        zip: app.zip,
-        license_number: app.license_number,
-        ein: app.ein,
-        website: app.website,
-        business_type: app.business_type,
-        volume_estimate: app.volume_estimate,
+      // 2. Insert into users table via RPC (bypasses RLS)
+      const { error: userError } = await supabase.rpc('insert_user', {
+        p_id: userId,
+        p_email: app.email,
+        p_business_name: app.business_name,
+        p_role: app.account_type,
+        p_status: 'approved',
+        p_phone: app.phone,
+        p_address: app.address,
+        p_city: app.city,
+        p_state: app.state,
+        p_zip: app.zip,
+        p_license_number: app.license_number,
+        p_ein: app.ein,
+        p_website: app.website,
+        p_business_type: app.business_type,
+        p_volume_estimate: app.volume_estimate,
       })
 
       if (userError) {
@@ -139,15 +150,12 @@ export function ApplicationsPage() {
         return
       }
 
-      // 3. Update application to link auth user and mark approved
-      const { error: appError } = await supabase
-        .from('applications')
-        .update({
-          status: 'approved',
-          auth_user_id: userId,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', app.id)
+      // 3. Update application via RPC (bypasses RLS)
+      const { error: appError } = await supabase.rpc('update_application_status', {
+        p_id: app.id,
+        p_status: 'approved',
+        p_auth_user_id: userId,
+      })
 
       if (appError) {
         toast.error('Failed to update application: ' + appError.message)
@@ -171,10 +179,10 @@ export function ApplicationsPage() {
 
   const handleReject = async (appId: string) => {
     setActionLoading(appId + '-reject')
-    const { error } = await supabase
-      .from('applications')
-      .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-      .eq('id', appId)
+    const { error } = await supabase.rpc('update_application_status', {
+      p_id: appId,
+      p_status: 'rejected',
+    })
     if (error) {
       toast.error('Failed to reject: ' + error.message)
     } else {
@@ -334,11 +342,11 @@ export function ApplicationsPage() {
             </div>
 
             <div className="p-5 space-y-4">
-              {/* Email sent notice */}
+              {/* Email status notice */}
               <div className="bg-[#44f80c]/10 border border-[#44f80c]/20 rounded-lg p-3 flex items-center gap-3">
                 <Mail className="w-5 h-5 text-[#44f80c]" />
                 <p className="text-sm text-[#44f80c]">
-                  A welcome email has been sent to {approvedApp.email}
+                  Account created for {approvedApp.email}. Share the password below — welcome email may be delayed due to rate limits.
                 </p>
               </div>
 
