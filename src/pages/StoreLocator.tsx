@@ -115,24 +115,9 @@ export function StoreLocator() {
     async function fetchStores() {
       setLoading(true);
       try {
-        const { data: wholesalers, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('role', 'wholesaler')
-          .eq('status', 'approved');
-
-        if (userError || !wholesalers || wholesalers.length === 0) {
-          setStores([]);
-          setLoading(false);
-          return;
-        }
-
-        const wholesalerIds = wholesalers.map((w) => w.id);
-
         const { data, error } = await supabase
-          .from('wholesaler_store_locations')
+          .from('stores')
           .select('*')
-          .in('user_id', wholesalerIds)
           .eq('is_active', true)
           .order('created_at', { ascending: false });
 
@@ -158,11 +143,7 @@ export function StoreLocator() {
                 if (result) {
                   lat = result.lat;
                   lng = result.lng;
-                  // Persist back to DB
-                  await supabase
-                    .from('wholesaler_store_locations')
-                    .update({ lat, lng })
-                    .eq('id', s.id);
+
                 }
               }
 
