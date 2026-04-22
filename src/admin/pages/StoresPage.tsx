@@ -145,7 +145,11 @@ export function StoresPage() {
             </div>
             <h3 className="text-lg font-semibold text-white mb-1">{s.name}</h3>
             <div className="flex items-center gap-2 mb-2"><span className="text-xs font-mono bg-[#9a02d0]/20 text-[#9a02d0] px-1.5 py-0.5 rounded">Acct #{s.account_number||'?'}</span><p className="text-sm text-gray-400">{s.owner?.business_name||'Unknown'}</p>{s.owner?.role && <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full uppercase', s.owner.role==='wholesaler'?'bg-[#44f80c]/20 text-[#44f80c]':'bg-[#ff66c4]/20 text-[#ff66c4]')}>{s.owner.role}</span>}</div>
-            {s.assigned_rep && <p className="text-xs text-[#44f80c] mb-2">Rep: {s.assigned_rep}</p>}
+            {s.assigned_rep ? (
+                        <p className="text-xs text-[#44f80c] mb-2">Rep: {s.assigned_rep}</p>
+                      ) : (
+                        <p className="text-xs text-gray-500 mb-2">Unassigned</p>
+                      )}
             <div className="space-y-1.5 text-sm text-gray-500 mb-4"><div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-gray-600 shrink-0" /><span>{s.address}{s.city&&`, ${s.city}`}{s.state&&`, ${s.state}`}{s.zip&&` ${s.zip}`}</span></div>{s.phone&&<p>{s.phone}</p>}{s.email&&<p className="truncate">{s.email}</p>}{s.website&&<div className="flex items-center gap-2"><Globe className="w-3.5 h-3.5 text-[#44f80c] shrink-0" /><span className="text-[#44f80c] truncate">{s.website}</span></div>}</div>
             <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
               {s.is_active ? <button onClick={() => handleSetPending(s.id)} title="Pending" className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-yellow-400"><PauseCircle className="w-4 h-4" /></button> : <button onClick={() => handleReactivate(s.id)} title="Activate" className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-emerald-400"><Store className="w-4 h-4" /></button>}
