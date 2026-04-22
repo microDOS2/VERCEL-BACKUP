@@ -130,6 +130,7 @@ export function SalesManagerDashboard() {
       }
 
 
+
       // Fetch stores for territory accounts
       if (accountsData && accountsData.length > 0) {
         const acctNums = accountsData.map((a: any) => a.referral_code).filter(Boolean);
@@ -161,7 +162,6 @@ export function SalesManagerDashboard() {
           }
         }
       }
-
       // Fetch rep_account_assignments
       // This table may not exist yet (migration needs to be applied)
       // Wrap in try/catch to handle gracefully
@@ -209,31 +209,14 @@ export function SalesManagerDashboard() {
     if (!repId) { toast.error('Select a Sales Rep'); return; }
     setSavingStore(storeId);
     const { error } = await supabase.from('wholesaler_store_locations').update({ license_number: `rep:${repId}` }).eq('id', storeId);
-    if (error) { toast.error('Failed: ' + error.message); } else {
-      toast.success('Assigned!');
-      const { data: refreshed } = await supabase.from('wholesaler_store_locations').select('*').order('name', { ascending: true });
-      if (refreshed) {
-        const acctNums = accounts.map((a: any) => a.referral_code).filter(Boolean);
-        const matched = refreshed.filter((s: any) => {
-          const m = (s.name || '').match(/^(\d+[a-z])\s*-\s*(.+)$/);
-          return m ? acctNums.includes(m[1].replace(/[a-z]$/, '')) : false;
-        }).map((s: any) => {
-          const nm = (s.name || '').match(/^(\d+[a-z])\s*-\s*(.+)$/);
-          return { ...s, store_number: nm ? nm[1] : '', clean_name: nm ? nm[2] : s.name };
-        });
-        setTerritoryStores(matched);
-      }
-    }
+    if (error) { toast.error('Failed: ' + error.message); } else { toast.success('Assigned!'); window.location.reload(); }
     setSavingStore(null);
   };
 
   const handleUnassignStore = async (storeId: string) => {
     if (!confirm('Remove store rep assignment?')) return;
     const { error } = await supabase.from('wholesaler_store_locations').update({ license_number: null }).eq('id', storeId);
-    if (error) { toast.error('Error'); } else {
-      toast.success('Unassigned');
-      setTerritoryStores((prev) => prev.map((s) => s.id === storeId ? { ...s, license_number: null } : s));
-    }
+    if (error) { toast.error('Error'); } else { toast.success('Unassigned'); window.location.reload(); }
   };
 
   const toggleAccount = (acctId: string) => {
@@ -377,7 +360,6 @@ export function SalesManagerDashboard() {
                 </div>
               </CardContent>
             </Card>
-
 
             {/* Territory Store Management */}
             <Card className="bg-[#150f24] border-white/10 lg:col-span-3">
