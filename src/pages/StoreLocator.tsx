@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Phone, Search, Loader2, Globe } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { geocodeAddress } from '@/lib/geocode';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -21,33 +22,36 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Custom marker icons
-const createCustomIcon = (stock: string) => {
-  const color = stock === 'In Stock' ? '#00D084' : stock === 'Low Stock' ? '#F59E0B' : '#EF4444';
+// ─── Unified marker icon (always green since stock is always In Stock) ───
+const MARKER_COLOR = '#44f80c';
+
+const createMarkerIcon = (isSelected: boolean) => {
   return L.divIcon({
     className: 'custom-marker',
     html: `<div style="
-      width: 30px;
-      height: 30px;
-      background-color: ${color};
+      position: relative;
+      width: ${isSelected ? '36px' : '30px'};
+      height: ${isSelected ? '36px' : '30px'};
+      background-color: ${MARKER_COLOR};
       border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      border: ${isSelected ? '4px' : '3px'} solid white;
+      box-shadow: 0 2px 8px rgba(68,248,12,0.5), ${isSelected ? '0 0 0 8px rgba(68,248,12,0.2)' : ''};
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.3s ease;
     ">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+      <svg width="${isSelected ? '18' : '16'}" height="${isSelected ? '18' : '16'}" viewBox="0 0 24 24" fill="none" stroke="#0a0514" stroke-width="2.5">
         <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
         <circle cx="12" cy="10" r="3"/>
       </svg>
     </div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
+    iconSize: [isSelected ? 36 : 30, isSelected ? 36 : 30],
+    iconAnchor: [isSelected ? 18 : 15, isSelected ? 36 : 30],
   });
 };
 
-// Map bounds component
+// ─── Map bounds component ───
 function MapBounds({ stores }: { stores: Store[] }) {
   const map = useMap();
 
@@ -61,17 +65,20 @@ function MapBounds({ stores }: { stores: Store[] }) {
   return null;
 }
 
-// Map pan component - pans to selected store
-function MapPan({ selectedStore }: { selectedStore: Store | null }) {
+// ─── Map pan + popup opener ───
+function MapInteraction({ selectedStore, markerRefs }: { selectedStore: Store | null; markerRefs: React.MutableRefObject<Map<string, L.Marker>> }) {
   const map = useMap();
 
   useEffect(() => {
     if (selectedStore) {
-      map.flyTo([selectedStore.lat, selectedStore.lng], 14, {
-        duration: 0.8,
-      });
+      map.flyTo([selectedStore.lat, selectedStore.lng], 15, { duration: 0.8 });
+      // Open popup after fly animation
+      const marker = markerRefs.current.get(selectedStore.id);
+      if (marker) {
+        setTimeout(() => marker.openPopup(), 900);
+      }
     }
-  }, [selectedStore, map]);
+  }, [selectedStore, map, markerRefs]);
 
   return null;
 }
@@ -86,7 +93,6 @@ interface Store {
   lat: number;
   lng: number;
   phone: string;
-  stock: 'In Stock' | 'Low Stock' | 'Out of Stock';
   website: string | null;
 }
 
@@ -95,13 +101,13 @@ export function StoreLocator() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const markerRefs = useRef<Map<string, L.Marker>>(new Map());
 
-  // Fetch stores from Supabase: only wholesaler-owned, active stores
+  // Fetch stores + geocode missing coordinates
   useEffect(() => {
     async function fetchStores() {
       setLoading(true);
       try {
-        // Step 1: Get approved wholesaler IDs
         const { data: wholesalers, error: userError } = await supabase
           .from('users')
           .select('id')
@@ -116,7 +122,6 @@ export function StoreLocator() {
 
         const wholesalerIds = wholesalers.map((w) => w.id);
 
-        // Step 2: Get stores for those wholesalers
         const { data, error } = await supabase
           .from('wholesaler_store_locations')
           .select('*')
@@ -127,25 +132,49 @@ export function StoreLocator() {
         if (error) {
           console.error('Store fetch error:', error);
           setStores([]);
-        } else if (data) {
-          // Transform to Store interface — default to Denver if no lat/lng
-          const DEFAULT_LAT = 39.7392;
-          const DEFAULT_LNG = -104.9903;
-          const transformed: Store[] = data
-            .map((s) => ({
-              id: s.id,
-              name: s.name || 'Unnamed Store',
-              address: s.address || '',
-              city: s.city || '',
-              state: s.state || '',
-              zip: s.zip || '',
-              lat: (s.lat as number) || DEFAULT_LAT,
-              lng: (s.lng as number) || DEFAULT_LNG,
-              phone: s.phone || '',
-              stock: (s.stock as 'In Stock' | 'Low Stock' | 'Out of Stock') || 'In Stock',
-              website: s.website || null,
-            }));
-          setStores(transformed);
+          setLoading(false);
+          return;
+        }
+
+        if (data) {
+          // Geocode any stores missing lat/lng
+          const storesWithCoords = await Promise.all(
+            data.map(async (s: any) => {
+              let lat = s.lat ? parseFloat(s.lat) : null;
+              let lng = s.lng ? parseFloat(s.lng) : null;
+
+              if (!lat || !lng) {
+                const fullAddress = [s.address, s.city, s.state, s.zip]
+                  .filter(Boolean)
+                  .join(', ');
+                const result = await geocodeAddress(fullAddress);
+                if (result) {
+                  lat = result.lat;
+                  lng = result.lng;
+                  // Persist back to DB
+                  await supabase
+                    .from('wholesaler_store_locations')
+                    .update({ lat, lng })
+                    .eq('id', s.id);
+                }
+              }
+
+              return {
+                id: s.id,
+                name: s.name || 'Unnamed Store',
+                address: s.address || '',
+                city: s.city || '',
+                state: s.state || '',
+                zip: s.zip || '',
+                lat: lat || 39.7392,
+                lng: lng || -104.9903,
+                phone: s.phone || '',
+                website: s.website || null,
+              };
+            })
+          );
+
+          setStores(storesWithCoords);
         }
       } catch (err) {
         console.error('Unexpected error:', err);
@@ -169,20 +198,7 @@ export function StoreLocator() {
     );
   }, [stores, searchQuery]);
 
-  const getStockBadge = (stock: string) => {
-    switch (stock) {
-      case 'In Stock':
-        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">In Stock</Badge>;
-      case 'Low Stock':
-        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Low Stock</Badge>;
-      case 'Out of Stock':
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Out of Stock</Badge>;
-      default:
-        return null;
-    }
-  };
-
-  const center: [number, number] = [39.7392, -104.9903]; // Denver
+  const center: [number, number] = [39.7392, -104.9903];
 
   if (loading) {
     return (
@@ -221,22 +237,6 @@ export function StoreLocator() {
               />
             </div>
 
-            {/* Legend */}
-            <div className="flex flex-wrap gap-2 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-gray-400">In Stock</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                <span className="text-gray-400">Low Stock</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span className="text-gray-400">Out of Stock</span>
-              </div>
-            </div>
-
             {/* Store count */}
             <div className="text-xs text-gray-500">
               {filteredStores.length} store{filteredStores.length !== 1 ? 's' : ''} found
@@ -255,24 +255,24 @@ export function StoreLocator() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="font-semibold text-white">{store.name}</h3>
-                      {getStockBadge(store.stock)}
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">In Stock</Badge>
                     </div>
                     <div className="space-y-1 text-sm text-gray-400">
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-[#9a02d0]" />
+                        <MapPin className="w-4 h-4 text-[#9a02d0] shrink-0" />
                         <span>
                           {store.address}, {store.city}, {store.state}
                         </span>
                       </div>
                       {store.phone && (
                         <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-[#9a02d0]" />
+                          <Phone className="w-4 h-4 text-[#9a02d0] shrink-0" />
                           <span>{store.phone}</span>
                         </div>
                       )}
                       {store.website && (
                         <div className="flex items-center gap-2">
-                          <Globe className="w-4 h-4 text-[#44f80c]" />
+                          <Globe className="w-4 h-4 text-[#44f80c] shrink-0" />
                           <a
                             href={store.website.startsWith('http') ? store.website : `https://${store.website}`}
                             target="_blank"
@@ -306,18 +306,23 @@ export function StoreLocator() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapBounds stores={filteredStores} />
-                <MapPan selectedStore={selectedStore} />
+                <MapInteraction selectedStore={selectedStore} markerRefs={markerRefs} />
                 {filteredStores.map((store) => (
                   <Marker
                     key={store.id}
                     position={[store.lat, store.lng]}
-                    icon={createCustomIcon(store.stock)}
+                    icon={createMarkerIcon(selectedStore?.id === store.id)}
+                    ref={(ref) => {
+                      if (ref) {
+                        markerRefs.current.set(store.id, ref);
+                      }
+                    }}
                     eventHandlers={{
                       click: () => setSelectedStore(store),
                     }}
                   >
                     <Popup>
-                      <div className="p-2">
+                      <div className="p-2 min-w-[200px]">
                         <h3 className="font-semibold text-gray-900">{store.name}</h3>
                         <p className="text-sm text-gray-600">{store.address}</p>
                         <p className="text-sm text-gray-600">
@@ -338,7 +343,9 @@ export function StoreLocator() {
                             </a>
                           </p>
                         )}
-                        <div className="mt-2">{getStockBadge(store.stock)}</div>
+                        <div className="mt-2">
+                          <Badge className="bg-green-500/20 text-green-600 border-green-500/30">In Stock</Badge>
+                        </div>
                       </div>
                     </Popup>
                   </Marker>
