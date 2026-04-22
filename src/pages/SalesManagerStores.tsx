@@ -20,6 +20,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { DBUser } from '@/lib/supabase';
 
 interface StoreItem {
@@ -67,6 +68,8 @@ export function SalesManagerStores() {
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at' | 'name'>('updated_at');
   const [sortAsc, setSortAsc] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [salesReps, setSalesReps] = useState<DBUser[]>([]);
+  const [assigningStore, setAssigningStore] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -115,9 +118,11 @@ export function SalesManagerStores() {
         // Fetch reps under this manager
         const { data: repsData } = await supabase
           .from('users')
-          .select('id')
+          .select('id, business_name, email')
           .eq('role', 'sales_rep')
           .eq('manager_id', session.user.id);
+
+        setSalesReps(repsData || []);
 
         if (repsData && repsData.length > 0) {
           const repIds = repsData.map((r) => r.id);
@@ -199,6 +204,23 @@ export function SalesManagerStores() {
   useEffect(() => {
     fetchStores();
   }, [fetchStores]);
+
+  // ──── ASSIGN REP TO STORE ────
+  const handleAssignRep = async (storeId: string, repId: string) => {
+    setAssigningStore(storeId);
+    try {
+      const { error } = await supabase
+        .from('wholesaler_store_locations')
+        .update({ license_number: repId ? `rep:${repId}` : null })
+        .eq('id', storeId);
+      if (error) throw error;
+      toast.success(repId ? 'Rep assigned!' : 'Rep removed!');
+      await fetchStores();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to assign rep');
+    }
+    setAssigningStore(null);
+  };
 
   // Auto-geocode
   const handleAddressBlur = async () => {
@@ -508,6 +530,23 @@ export function SalesManagerStores() {
                       </span>
                     )}
                   </div>
+                  {/* Rep Assignment */}
+                  {salesReps.length > 0 && (
+                    <div className="mb-3 pt-2 border-t border-white/5">
+                      <label className="block text-[10px] uppercase text-gray-500 mb-1">Assigned Rep</label>
+                      <select
+                        className="w-full text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1.5 text-gray-300 focus:outline-none focus:border-[#44f80c]/50"
+                        value={s.license_number?.startsWith('rep:') ? s.license_number.split(':')[1] : ''}
+                        onChange={(e) => handleAssignRep(s.id, e.target.value)}
+                        disabled={assigningStore === s.id}
+                      >
+                        <option value="">— Unassigned —</option>
+                        {salesReps.map((rep) => (
+                          <option key={rep.id} value={rep.id}>{rep.business_name || rep.email}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
                     <button
                       onClick={() => openEdit(s)}
