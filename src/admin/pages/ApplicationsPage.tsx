@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Store, Check, X, Loader2, Clock, Globe, MapPin } from 'lucide-react'
+import { Store, Check, X, Loader2, Clock, Globe, MapPin, Key, Copy, CheckCheck, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Application {
@@ -19,7 +19,7 @@ interface Application {
   license_number: string | null
   ein: string | null
   website: string | null
-  account_type: 'wholesaler' | 'distributor'
+  account_type: 'wholesaler' | 'distributor' | 'influencer'
   business_type: string | null
   volume_estimate: string | null
   status: 'pending' | 'approved' | 'rejected' | 'more_info_needed'
@@ -30,17 +30,34 @@ interface Application {
 const typeLabels: Record<string, string> = {
   wholesaler: 'Wholesaler',
   distributor: 'Distributor',
+  influencer: 'Influencer',
 }
 
 const typeBadgeClasses: Record<string, string> = {
   wholesaler: 'bg-[#44f80c]/20 text-[#44f80c]',
   distributor: 'bg-[#ff66c4]/20 text-[#ff66c4]',
+  influencer: 'bg-orange-500/20 text-orange-400',
+}
+
+function generatePassword(length = 12): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
+  let pwd = ''
+  for (let i = 0; i < length; i++) {
+    pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return pwd
 }
 
 export function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Approval modal state
+  const [showApproveModal, setShowApproveModal] = useState(false)
+  const [approvedApp, setApprovedApp] = useState<Application | null>(null)
+  const [generatedPassword, setGeneratedPassword] = useState('')
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const fetchApplications = async () => {
     setLoading(true)
@@ -62,18 +79,93 @@ export function ApplicationsPage() {
     fetchApplications()
   }, [])
 
-  const handleApprove = async (appId: string) => {
-    setActionLoading(appId + '-approve')
-    const { error } = await supabase
-      .from('applications')
-      .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-      .eq('id', appId)
-    if (error) {
-      toast.error('Failed to approve: ' + error.message)
-    } else {
-      toast.success('Application approved successfully')
+  // FULL approval: creates auth user + users table row + links application
+  const handleApprove = async (app: Application) => {
+    setActionLoading(app.id + '-approve')
+
+    const password = generatePassword()
+
+    try {
+      // 1. Create Supabase auth user (triggers welcome email automatically)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: app.email,
+        password,
+        options: {
+          data: {
+            business_name: app.business_name,
+            role: app.account_type,
+          },
+        },
+      })
+
+      if (authError) {
+        // If user already exists, try admin.createUser via the existing sign-up flow
+        toast.error('Auth error: ' + authError.message)
+        setActionLoading(null)
+        return
+      }
+
+      if (!authData.user) {
+        toast.error('Failed to create auth user')
+        setActionLoading(null)
+        return
+      }
+
+      const userId = authData.user.id
+
+      // 2. Insert into users table with full business info
+      const { error: userError } = await supabase.from('users').insert({
+        id: userId,
+        email: app.email,
+        full_name: app.contact_name || app.business_name,
+        business_name: app.business_name,
+        role: app.account_type,
+        status: 'approved',
+        phone: app.phone,
+        address: app.address,
+        city: app.city,
+        state: app.state,
+        zip: app.zip,
+        license_number: app.license_number,
+        ein: app.ein,
+        website: app.website,
+        business_type: app.business_type,
+        volume_estimate: app.volume_estimate,
+      })
+
+      if (userError) {
+        toast.error('Failed to create user profile: ' + userError.message)
+        setActionLoading(null)
+        return
+      }
+
+      // 3. Update application to link auth user and mark approved
+      const { error: appError } = await supabase
+        .from('applications')
+        .update({
+          status: 'approved',
+          auth_user_id: userId,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', app.id)
+
+      if (appError) {
+        toast.error('Failed to update application: ' + appError.message)
+        setActionLoading(null)
+        return
+      }
+
+      // 4. Show success + password modal
+      toast.success(`${app.business_name} approved! Account created.`)
+      setGeneratedPassword(password)
+      setApprovedApp(app)
+      setShowApproveModal(true)
+
       await fetchApplications()
+    } catch (err: any) {
+      toast.error(err?.message || 'Approval failed')
     }
+
     setActionLoading(null)
   }
 
@@ -90,6 +182,12 @@ export function ApplicationsPage() {
       await fetchApplications()
     }
     setActionLoading(null)
+  }
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
   }
 
   const formatDate = (dateStr: string) => {
@@ -188,7 +286,7 @@ export function ApplicationsPage() {
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      onClick={() => handleApprove(app.id)}
+                      onClick={() => handleApprove(app)}
                       disabled={actionLoading === app.id + '-approve'}
                       className="bg-[#44f80c]/20 text-[#44f80c] hover:bg-[#44f80c]/30"
                     >
@@ -220,6 +318,104 @@ export function ApplicationsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Approval Success Modal - Shows generated credentials */}
+      {showApproveModal && approvedApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#150f24] border border-[#44f80c]/30 rounded-xl w-full max-w-md shadow-2xl">
+            <div className="p-5 border-b border-white/10">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCheck className="w-5 h-5 text-[#44f80c]" />
+                <h3 className="text-lg font-semibold text-white">Account Created</h3>
+              </div>
+              <p className="text-gray-400 text-sm">
+                {approvedApp.business_name} has been approved and their account is ready.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Email sent notice */}
+              <div className="bg-[#44f80c]/10 border border-[#44f80c]/20 rounded-lg p-3 flex items-center gap-3">
+                <Mail className="w-5 h-5 text-[#44f80c]" />
+                <p className="text-sm text-[#44f80c]">
+                  A welcome email has been sent to {approvedApp.email}
+                </p>
+              </div>
+
+              {/* Portal info */}
+              <div className="text-sm text-gray-400">
+                <p>Portal access:</p>
+                <p className="text-white font-medium">
+                  {approvedApp.account_type === 'wholesaler' && '/wholesaler-portal'}
+                  {approvedApp.account_type === 'distributor' && '/distributor-portal'}
+                  {approvedApp.account_type === 'influencer' && '/influencer-portal'}
+                </p>
+              </div>
+
+              {/* Email field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1.5">Email (Username)</label>
+                <div className="flex gap-2">
+                  <div className="flex-1 px-3 py-2.5 bg-[#0a0514] border border-white/10 rounded-lg text-sm text-white font-mono">
+                    {approvedApp.email}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(approvedApp.email, 'email')}
+                    className="px-3 py-2.5 bg-[#0a0514] border border-white/10 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                    title="Copy email"
+                  >
+                    {copiedField === 'email' ? (
+                      <CheckCheck className="w-4 h-4 text-[#44f80c]" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Password field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1.5">
+                  <Key className="w-3.5 h-3.5 inline mr-1" />
+                  Generated Password
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 px-3 py-2.5 bg-[#0a0514] border border-[#9a02d0]/30 rounded-lg text-sm text-white font-mono">
+                    {generatedPassword}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(generatedPassword, 'password')}
+                    className="px-3 py-2.5 bg-[#0a0514] border border-[#9a02d0]/30 rounded-lg text-[#9a02d0] hover:bg-[#9a02d0]/10 transition-colors"
+                    title="Copy password"
+                  >
+                    {copiedField === 'password' ? (
+                      <CheckCheck className="w-4 h-4 text-[#44f80c]" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Share this password with the business owner. They can change it after logging in.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-5 border-t border-white/10">
+              <button
+                onClick={() => {
+                  setShowApproveModal(false)
+                  setApprovedApp(null)
+                  setGeneratedPassword('')
+                }}
+                className="px-4 py-2.5 bg-[#9a02d0] hover:bg-[#7a01a8] rounded-lg text-sm text-white transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
