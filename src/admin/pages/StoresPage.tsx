@@ -67,7 +67,7 @@ export function StoresPage() {
   const fetchStores = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase.from('wholesaler_store_locations').select('*', { count: 'exact' }).order(sortBy, { ascending: sortAsc }).range(page * pageSize, (page + 1) * pageSize - 1)
+      let query = supabase.from('stores').select('*', { count: 'exact' }).order('updated_at', { ascending: sortAsc }).range(page * pageSize, (page + 1) * pageSize - 1)
       if (search) query = query.or(`name.ilike.%${search}%,address.ilike.%${search}%,city.ilike.%${search}%`)
       const { data: storeData, count, error: storeError } = await query
       if (storeError) { console.error(storeError); setStores([]); setLoading(false); return }
@@ -116,18 +116,18 @@ export function StoresPage() {
   const handleSave = async () => {
     const payload: any = { name: formData.name, user_id: formData.user_id, address: formData.address, city: formData.city || null, state: formData.state || null, zip: formData.zip || null, lat: formData.lat ? parseFloat(formData.lat) : null, lng: formData.lng ? parseFloat(formData.lng) : null, phone: formData.phone || null, email: formData.email || null, website: formData.website || null, license_number: formData.license_number || null, is_primary: formData.is_primary, is_active: formData.is_active, source: editingStore ? editingStore.source : 'admin' }
     if (editingStore) {
-      const { error } = await supabase.from('wholesaler_store_locations').update(payload).eq('id', editingStore.id)
+      const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id)
       error ? toast.error('Error: ' + error.message) : toast.success('Store updated')
     } else {
-      const { error } = await supabase.from('wholesaler_store_locations').insert([payload])
+      const { error } = await supabase.from('stores').insert([payload])
       error ? toast.error('Error: ' + error.message) : toast.success('Store created')
     }
     setShowModal(false); setEditingStore(null); resetForm(); fetchStores()
   }
 
-  const handleDelete = async (id: string) => { if (!confirm('Delete?')) return; const { error } = await supabase.from('wholesaler_store_locations').delete().eq('id', id); error ? toast.error('Error: ' + error.message) : toast.success('Deleted'); fetchStores() }
-  const handleSetPending = async (id: string) => { if (!confirm('Set to Pending?')) return; const { error } = await supabase.from('wholesaler_store_locations').update({ is_active: false }).eq('id', id); error ? toast.error('Error') : toast.success('Pending'); fetchStores() }
-  const handleReactivate = async (id: string) => { const { error } = await supabase.from('wholesaler_store_locations').update({ is_active: true }).eq('id', id); error ? toast.error('Error') : toast.success('Active'); fetchStores() }
+  const handleDelete = async (id: string) => { if (!confirm('Delete?')) return; const { error } = await supabase.from('stores').delete().eq('id', id); error ? toast.error('Error: ' + error.message) : toast.success('Deleted'); fetchStores() }
+  const handleSetPending = async (id: string) => { if (!confirm('Set to Pending?')) return; const { error } = await supabase.from('stores').update({ is_active: false }).eq('id', id); error ? toast.error('Error') : toast.success('Pending'); fetchStores() }
+  const handleReactivate = async (id: string) => { const { error } = await supabase.from('stores').update({ is_active: true }).eq('id', id); error ? toast.error('Error') : toast.success('Active'); fetchStores() }
 
   const openEdit = (s: StoreItem) => { setEditingStore(s); setFormData({ name: s.name || '', user_id: s.user_id || '', address: s.address || '', city: s.city || '', state: s.state || '', zip: s.zip || '', lat: s.lat != null ? String(s.lat) : '', lng: s.lng != null ? String(s.lng) : '', phone: s.phone || '', email: s.email || '', website: s.website || '', license_number: (s as any).license_number || '', is_primary: s.is_primary || false, is_active: s.is_active ?? true }); setShowModal(true) }
   const resetForm = () => setFormData({ name: '', user_id: '', address: '', city: '', state: '', zip: '', lat: '', lng: '', phone: '', email: '', website: '', license_number: '', is_primary: false, is_active: true })
