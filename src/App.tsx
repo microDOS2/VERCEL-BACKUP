@@ -34,7 +34,7 @@ import { AdminLayout } from './admin/AdminLayout';
 import { DashboardPage } from './admin/pages/DashboardPage';
 import { UsersPage } from './admin/pages/UsersPage';
 import { ApplicationsPage } from './admin/pages/ApplicationsPage';
-import { AssignmentsPage } from './admin/pages/AssignmentsPage';
+import { AccountsPage } from './admin/pages/AssignmentsPage';
 import { InfluencersPage } from './admin/pages/InfluencersPage';
 import { ProductsPage } from './admin/pages/ProductsPage';
 import { OrdersPage } from './admin/pages/OrdersPage';
@@ -120,7 +120,8 @@ function AppContent() {
             <Route index element={<DashboardPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="applications" element={<ApplicationsPage />} />
-            <Route path="assignments" element={<AssignmentsPage />} />
+            <Route path="accounts" element={<AccountsPage />} />
+          <Route path="assignments" element={<Navigate to="/admin/accounts" replace />} />
             <Route path="influencers" element={<InfluencersPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="orders" element={<OrdersPage />} />
