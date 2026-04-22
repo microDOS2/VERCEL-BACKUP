@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -121,12 +121,12 @@ export function StoresPage() {
 
   const handleAssignStore = async (storeId: string) => {
     const repId = selectedRep[storeId]; if (!repId) { toast.error('Select a Sales Rep'); return }
-    setSaving(storeId); await supabase.from('store_assignments').delete().eq('store_id', storeId)
-    const { error } = await supabase.from('store_assignments').insert([{ store_id: storeId, rep_id: repId }])
+    setSaving(storeId); await supabaseAdmin.from('store_assignments').delete().eq('store_id', storeId)
+    const { error } = await supabaseAdmin.from('store_assignments').insert([{ store_id: storeId, rep_id: repId }])
     if (error) toast.error('Failed: ' + error.message); else { toast.success('Assigned!'); fetchStores() }
     setSaving(null)
   }
-  const handleUnassignStore = async (storeId: string) => { if (!confirm('Remove?')) return; const { error } = await supabase.from('store_assignments').delete().eq('store_id', storeId); if (error) toast.error('Error'); else { toast.success('Unassigned'); fetchStores() } }
+  const handleUnassignStore = async (storeId: string) => { if (!confirm('Remove?')) return; const { error } = await supabaseAdmin.from('store_assignments').delete().eq('store_id', storeId); if (error) toast.error('Error'); else { toast.success('Unassigned'); fetchStores() } }
 
   const totalPages = Math.ceil(totalCount / pageSize)
 
