@@ -126,12 +126,12 @@ export function AccountsPage() {
 
   const handleAssignAccount = async (accountId: string) => {
     const repId = selectedRep[accountId]; if (!repId) { toast.error('Select a Sales Rep'); return }
-    setSaving(accountId); await supabase.from('rep_account_assignments').delete().eq('account_id', accountId)
-    const { error } = await supabase.from('rep_account_assignments').insert([{ account_id: accountId, rep_id: repId }])
+    setSaving(accountId); await supabaseAdmin.from('rep_account_assignments').delete().eq('account_id', accountId)
+    const { error } = await supabaseAdmin.from('rep_account_assignments').insert([{ account_id: accountId, rep_id: repId }])
     error ? toast.error('Failed: ' + error.message) : (toast.success('Assigned!'), fetchAll())
     setSaving(null)
   }
-  const handleUnassignAccount = async (accountId: string) => { if (!confirm('Remove?')) return; const { error } = await supabase.from('rep_account_assignments').delete().eq('account_id', accountId); error ? toast.error('Error') : (toast.success('Unassigned'), fetchAll()) }
+  const handleUnassignAccount = async (accountId: string) => { if (!confirm('Remove?')) return; const { error } = await supabaseAdmin.from('rep_account_assignments').delete().eq('account_id', accountId); error ? toast.error('Error') : (toast.success('Unassigned'), fetchAll()) }
 
   const handleAssignStore = async (storeId: string) => {
     const repId = selectedStoreRep[storeId]; if (!repId) { toast.error('Select a Sales Rep'); return }
