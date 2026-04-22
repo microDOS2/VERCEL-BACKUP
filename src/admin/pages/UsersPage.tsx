@@ -68,6 +68,30 @@ const roleBadgeClasses: Record<string, string> = {
   retailer: 'bg-gray-500/20 text-gray-400',
 }
 
+const ALL_US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+  'DC', 'PR', 'GU', 'VI', 'AS', 'MP',
+]
+
+const STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
+  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  DC: 'District of Columbia', PR: 'Puerto Rico', GU: 'Guam', VI: 'Virgin Islands',
+  AS: 'American Samoa', MP: 'Northern Mariana Islands',
+}
+
 function generatePassword(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
   let password = ''
@@ -126,6 +150,9 @@ export function UsersPage() {
 
   // Manager assignment loading
   const [savingManager, setSavingManager] = useState<string | null>(null)
+
+  // Territory state management loading
+  const [savingStates, setSavingStates] = useState<string | null>(null)
 
   // ─── Fetch both users AND pending applications ───
   const fetchAll = async () => {
@@ -388,6 +415,44 @@ export function UsersPage() {
     setSavingManager(null)
   }
 
+  // ──── TERRITORY STATE MANAGEMENT ────
+  const handleAddState = async (managerId: string, state: string) => {
+    setSavingStates(managerId)
+    try {
+      const mgr = allAccounts.find(u => u.id === managerId)
+      const current = (() => { try { const p = mgr?.raw?.volume_estimate ? JSON.parse(mgr.raw.volume_estimate) : []; return Array.isArray(p) ? p : [] } catch { return [] } })()
+      if (current.includes(state)) return
+      const updated = [...current, state].sort()
+      const { error } = await supabase
+        .from('users')
+        .update({ volume_estimate: JSON.stringify(updated) })
+        .eq('id', managerId)
+      if (error) throw error
+      await fetchAll()
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to add state')
+    }
+    setSavingStates(null)
+  }
+
+  const handleRemoveState = async (managerId: string, state: string) => {
+    setSavingStates(managerId)
+    try {
+      const mgr = allAccounts.find(u => u.id === managerId)
+      const current = (() => { try { const p = mgr?.raw?.volume_estimate ? JSON.parse(mgr.raw.volume_estimate) : []; return Array.isArray(p) ? p : [] } catch { return [] } })()
+      const updated = current.filter((s: string) => s !== state)
+      const { error } = await supabase
+        .from('users')
+        .update({ volume_estimate: JSON.stringify(updated) })
+        .eq('id', managerId)
+      if (error) throw error
+      await fetchAll()
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to remove state')
+    }
+    setSavingStates(null)
+  }
+
   // ──── APPROVE APPLICATION ────
   const handleApproveFromUsers = async (_app: UnifiedUser) => {
     navigate('/admin/applications')
@@ -499,7 +564,54 @@ export function UsersPage() {
                         </td>
                         <td className="px-4 py-3">
                           {account.role === 'sales_manager' && account.source === 'users' ? (
-                            (() => { try { const p = account.raw?.volume_estimate ? JSON.parse(account.raw.volume_estimate) : []; return Array.isArray(p) && p.length > 0 ? <div className="flex flex-wrap gap-1">{p.map((s: string) => <span key={s} className="text-xs bg-[#44f80c]/20 text-[#44f80c] px-2 py-0.5 rounded">{s}</span>)}</div> : <span className="text-xs text-gray-500">No states</span> } catch { return <span className="text-xs text-gray-500">No states</span> } })()
+                            (() => {
+                              const states = (() => { try { const p = account.raw?.volume_estimate ? JSON.parse(account.raw.volume_estimate) : []; return Array.isArray(p) ? p.sort() : [] } catch { return [] } })()
+                              const isSaving = savingStates === account.id
+                              const available = ALL_US_STATES.filter(s => !states.includes(s))
+                              return (
+                                <div className="space-y-2">
+                                  {states.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {states.map((s: string) => (
+                                        <span key={s} className="inline-flex items-center gap-1 text-xs bg-[#44f80c]/20 text-[#44f80c] px-2 py-0.5 rounded group">
+                                          {s}
+                                          {!isSaving && (
+                                            <button
+                                              onClick={() => handleRemoveState(account.id, s)}
+                                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[#44f80c]/70 hover:text-[#44f80c]"
+                                              title={`Remove ${s}`}
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-500">No territory states — select to add</span>
+                                  )}
+                                  {isSaving && (
+                                    <div className="flex items-center gap-1 text-xs text-[#9a02d0]">
+                                      <Loader2 className="w-3 h-3 animate-spin" /> Saving...
+                                    </div>
+                                  )}
+                                  {available.length > 0 && !isSaving && (
+                                    <select
+                                      key={available.length}
+                                      className="text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#44f80c]/50 w-full max-w-[160px]"
+                                      value=""
+                                      onChange={(e) => { if (e.target.value) { handleAddState(account.id, e.target.value) } }}
+                                    >
+                                      <option value="">+ Add state...</option>
+                                      {available.map(s => <option key={s} value={s}>{s} — {STATE_NAMES[s]}</option>)}
+                                    </select>
+                                  )}
+                                  {available.length === 0 && states.length > 0 && !isSaving && (
+                                    <span className="text-[10px] text-gray-500">All available states assigned</span>
+                                  )}
+                                </div>
+                              )
+                            })()
                           ) : (account.role === 'wholesaler' || account.role === 'distributor') && account.source === 'users' ? (
                             <select
                               className="text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#44f80c]/50 w-full max-w-[140px]"
