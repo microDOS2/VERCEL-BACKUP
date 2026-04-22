@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  ArrowLeft, Search, Loader2, MapPin, Users, Check,
+  ArrowLeft, Search, Loader2, MapPin, Users, Check, Shield,
   ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -199,9 +199,12 @@ export function SalesManagerAccounts() {
           </div>
 
           {managerStates.length > 0 && (
-            <p className="text-sm text-gray-400 mb-6 ml-[72px]">
-              Territory: {managerStates.join(', ')}
-            </p>
+            <div className="mb-6 ml-[72px] flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-base font-medium text-[#9a02d0] bg-[#9a02d0]/10 px-3 py-1 rounded-full">
+                <Shield className="w-4 h-4" />
+                Territory: {managerStates.join(', ')}
+              </span>
+            </div>
           )}
 
           <div className="relative mb-6">
