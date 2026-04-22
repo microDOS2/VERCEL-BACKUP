@@ -46,10 +46,6 @@ export function SalesManagerAccounts() {
   const [selectedStoreRep, setSelectedStoreRep] = useState<Record<string, string>>({});
   const [savingStore, setSavingStore] = useState<string | null>(null);
 
-  const parseStoreNumber = (name: string): { number: string; cleanName: string } => {
-    const m = name.match(/^(\d+[a-z])\s*-\s*(.+)$/);
-    return m ? { number: m[1], cleanName: m[2] } : { number: '', cleanName: name };
-  };
 
   const extractRepFromLicense = (license: string | null): string | null => {
     return license && license.startsWith('rep:') ? license.slice(4) : null;
