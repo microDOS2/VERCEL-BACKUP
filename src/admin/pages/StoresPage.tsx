@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Pencil, Trash2, X, ChevronLeft, ChevronRight, Store, MapPin, Phone, Loader2, PauseCircle, PlayCircle, Users, UserMinus, Check } from 'lucide-react'
+import { Search, Pencil, Trash2, X, ChevronLeft, ChevronRight, Store, MapPin, Phone, Loader2, PauseCircle, PlayCircle, Users, UserMinus, Check, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -25,6 +25,7 @@ interface StoreItem {
   owner_role: string
   assigned_rep_id: string | null
   assigned_rep_name: string | null
+  manager_name: string | null
 }
 
 export function StoresPage() {
@@ -58,8 +59,11 @@ export function StoresPage() {
       const { data: storeData, count, error } = await query
       if (error) { console.error(error); setStores([]); setLoading(false); return }
 
-      const { data: usersData } = await supabase.from('users').select('id, business_name, email, role, referral_code').eq('status', 'approved').in('role', ['wholesaler', 'distributor'])
+      const { data: usersData } = await supabase.from('users').select('id, business_name, email, role, referral_code, manager_id').eq('status', 'approved').in('role', ['wholesaler', 'distributor'])
       const userMap = new Map(); (usersData || []).forEach((u: any) => userMap.set(u.referral_code, u))
+
+      const { data: managersData } = await supabase.from('users').select('id, business_name, email').eq('role', 'sales_manager').eq('status', 'approved')
+      const managerMap = new Map(); (managersData || []).forEach((m: any) => managerMap.set(m.id, m))
 
       const { data: repsData } = await supabase.from('users').select('id, business_name, email').eq('role', 'sales_rep').eq('status', 'approved')
       setReps(repsData || [])
@@ -78,6 +82,7 @@ export function StoresPage() {
           owner_name: owner ? (owner.business_name || owner.email) : 'Unknown',
           owner_role: owner?.role || '', assigned_rep_id: repId,
           assigned_rep_name: rep ? (rep.business_name || rep.email) : null,
+          manager_name: owner?.manager_id ? (managerMap.get(owner.manager_id)?.business_name || managerMap.get(owner.manager_id)?.email || 'Unknown') : null,
         }
       })
       setStores(transformed); setTotalCount(count || 0)
@@ -134,6 +139,9 @@ export function StoresPage() {
                 {s.owner_role && <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full uppercase', s.owner_role === 'wholesaler' ? 'bg-[#44f80c]/20 text-[#44f80c]' : 'bg-[#ff66c4]/20 text-[#ff66c4]')}>{s.owner_role}</span>}
               </div>
               <div className="flex flex-col gap-2 mt-2 mb-3">
+                {s.manager_name && (
+                  <span className="text-xs text-[#9a02d0] bg-[#9a02d0]/10 px-2 py-0.5 rounded flex items-center gap-1 w-fit"><Shield className="w-3 h-3" /> Manager: {s.manager_name}</span>
+                )}
                 {s.assigned_rep_name ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[#44f80c] bg-[#44f80c]/10 px-2 py-0.5 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {s.assigned_rep_name}</span>
