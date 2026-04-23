@@ -21,7 +21,8 @@ import {
   X,
   ChevronRight,
   LogOut,
-  Shield
+  Shield,
+  Loader2
 } from 'lucide-react'
 
 const navItems = [
@@ -44,21 +45,40 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [adminName, setAdminName] = useState('Admin')
   const [adminEmail, setAdminEmail] = useState('admin@microdos2.com')
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
 
   useEffect(() => {
-    async function loadAdmin() {
+    async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const { data } = await supabase.from('users').select('business_name,email').eq('id', session.user.id).single()
-        if (data) {
-          setAdminName(data.business_name || 'Admin')
-          setAdminEmail(data.email || 'admin@microdos2.com')
-        }
+      if (!session?.user) {
+        navigate('/admin-portal')
+        return
+      }
+      const { data } = await supabase
+        .from('users')
+        .select('business_name,email,role')
+        .eq('id', session.user.id)
+        .single()
+      if (!data) {
+        navigate('/admin-portal')
+        return
+      }
+      // Role-based redirect
+      if (data.role === 'admin') {
+        setAdminName(data.business_name || 'Admin')
+        setAdminEmail(data.email || 'admin@microdos2.com')
+        setIsAuthorized(true)
+      } else if (data.role === 'sales_manager') {
+        navigate('/sales-manager-accounts')
+      } else if (data.role === 'sales_rep') {
+        navigate('/sales-rep')
+      } else {
+        navigate('/')
       }
     }
-    loadAdmin()
+    checkAuth()
   }, [])
 
   const handleLogout = async () => {
@@ -71,6 +91,18 @@ export function AdminLayout() {
     if (path === '/admin') return location.pathname === '/admin'
     return location.pathname.startsWith(path)
   }
+
+  // Show loading spinner while checking role
+  if (isAuthorized === null) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#0a0514]">
+        <Loader2 className="w-8 h-8 text-[#9a02d0] animate-spin" />
+      </div>
+    )
+  }
+
+  // Non-admin users are redirected — don't render admin UI
+  if (!isAuthorized) return null
 
   return (
     <div className="min-h-screen bg-[#0a0514] text-white flex">
