@@ -402,6 +402,11 @@ export function UsersPage() {
       })
       // Update plain_password separately
       if (editPassword !== '') {
+        if (editPassword.length < 6) {
+          toast.error('Password must be at least 6 characters')
+          setSavingEdit(false)
+          return
+        }
         await supabase.from('users').update({ plain_password: editPassword }).eq('id', editingUser.id)
         // Also update the actual Supabase Auth password via Edge Function
         try {
