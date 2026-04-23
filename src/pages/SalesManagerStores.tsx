@@ -63,6 +63,7 @@ export function SalesManagerStores() {
   const [stores, setStores] = useState<StoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [, setManagerId] = useState<string | null>(null);
+  const [managerName, setManagerName] = useState<string>('');
   const [territoryAccountIds, setTerritoryAccountIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -120,6 +121,7 @@ export function SalesManagerStores() {
         }
 
         setManagerId(session.user.id);
+        setManagerName(userData?.business_name || '');
 
         // Fetch reps under this manager
         const { data: repsData } = await supabase
@@ -499,7 +501,7 @@ export function SalesManagerStores() {
                   <h3 className="text-lg font-semibold text-white mb-1">
                     {s.name || 'Unnamed Store'}
                   </h3>
-                  <p className="text-sm text-gray-400 mb-3">
+                  <p className="text-sm text-gray-400 mb-1">
                     Owner: {s.owner?.business_name || s.owner?.email || 'Unknown'}
                     {s.owner?.role && (
                       <span
@@ -514,6 +516,12 @@ export function SalesManagerStores() {
                       </span>
                     )}
                   </p>
+                  {managerName && (
+                    <p className="text-sm text-[#9a02d0] mb-3">
+                      <Shield className="w-3 h-3 inline mr-1" />
+                      Manager: {managerName}
+                    </p>
+                  )}
                   <div className="space-y-1.5 text-sm text-gray-500 mb-4">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-gray-600" />
