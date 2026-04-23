@@ -138,6 +138,7 @@ export function UsersPage() {
   const [editCity, setEditCity] = useState('')
   const [editState, setEditState] = useState('')
   const [editStatus, setEditStatus] = useState('')
+  const [editPassword, setEditPassword] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
   // Password modal
@@ -307,6 +308,7 @@ export function UsersPage() {
         id: authData.user.id,
         email: newUserEmail,
         business_name: newUserName,
+        plain_password: password,
         role: newUserRole,
         status: 'approved',
       })
@@ -347,6 +349,7 @@ export function UsersPage() {
         email: accountEmail,
         business_name: accountBusinessName,
         contact_name: accountContactName || null,
+        plain_password: accountPassword,
         license_number: accountLicense,
         ein: accountEin,
         phone: accountPhone || null,
@@ -380,6 +383,7 @@ export function UsersPage() {
     setEditCity(user.city || '')
     setEditState(user.state || '')
     setEditStatus(user.status || 'approved')
+    setEditPassword(user.raw?.plain_password || '')
     setShowEditModal(true)
   }
 
@@ -395,10 +399,15 @@ export function UsersPage() {
         p_city: editCity || null,
         p_state: editState || null,
         p_status: editStatus,
+        p_plain_password: editPassword || null,
       })
       if (error) {
         toast.error('Failed to update: ' + error.message)
       } else {
+        // Also update plain_password directly
+        if (editPassword !== '') {
+          await supabase.from('users').update({ plain_password: editPassword }).eq('id', editingUser.id)
+        }
         toast.success('User updated!')
         setShowEditModal(false)
         await fetchAll()
@@ -891,6 +900,19 @@ export function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {editingUser && ['sales_rep', 'sales_manager', 'admin'].includes(editingUser.role) && (
+              <div>
+                <Label className="text-gray-300">Password</Label>
+                <Input
+                  type="text"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="bg-[#0a0514] border-white/10 text-white font-mono"
+                  placeholder="Enter or change password"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Leave blank to keep current password</p>
+              </div>
+            )}
             <Button onClick={handleSaveEdit} disabled={savingEdit} className="w-full bg-gradient-to-r from-blue-500 to-[#9a02d0] text-white">
               {savingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Save Changes
