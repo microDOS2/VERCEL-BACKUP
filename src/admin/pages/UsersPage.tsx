@@ -346,6 +346,7 @@ export function UsersPage() {
         id: authData.user.id,
         email: accountEmail,
         business_name: accountBusinessName,
+        contact_name: accountContactName || null,
         license_number: accountLicense,
         ein: accountEin,
         phone: accountPhone || null,
@@ -602,7 +603,7 @@ export function UsersPage() {
                   {sorted.map((account) => {
                     const role = account.role || account.account_type || ''
                     const displayName = account.source === 'applications'
-                      ? (account.contact_name ? `${account.contact_name} — ${account.business_name}` : account.business_name)
+                      ? (account.contact_name ? `${account.business_name} — ${account.contact_name}` : account.business_name)
                       : account.business_name
 
                     return (
@@ -858,7 +859,7 @@ export function UsersPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-gray-300">Business / Full Name</Label>
+              <Label className="text-gray-300">{(['wholesaler', 'distributor', 'influencer'].includes(editingUser?.role || '')) ? 'Business Name' : 'Full Name'}</Label>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="bg-[#0a0514] border-white/10 text-white" />
             </div>
             <div>
