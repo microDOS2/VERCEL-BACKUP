@@ -22,7 +22,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
-  Users, Plus, Search, Check, Copy, Store, UserPlus, Loader2, X, Info, Pencil, Eye
+  Users, Plus, Search, Check, Copy, Store, UserPlus, Loader2, X, Info, Pencil, Eye, Key
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { DBUser } from '@/lib/supabase'
@@ -150,6 +150,9 @@ export function UsersPage() {
 
   // Manager assignment loading
   const [savingManager, setSavingManager] = useState<string | null>(null)
+
+  // Password reset loading
+  const [resettingPassword, setResettingPassword] = useState(false)
 
   // Territory state management loading
   const [savingStates, setSavingStates] = useState<string | null>(null)
@@ -407,6 +410,23 @@ export function UsersPage() {
       toast.error(err?.message || 'Error')
     }
     setSavingEdit(false)
+  }
+
+  // ──── RESET PASSWORD (Admin only: Sales Rep, Sales Manager, Admin) ────
+  const handleResetPassword = async () => {
+    if (!editingUser) return
+    if (!confirm(`Send password reset email to ${editingUser.business_name} (${editingUser.email})?`)) return
+    setResettingPassword(true)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(editingUser.email, {
+        redirectTo: `${window.location.origin}/#/reset-password`,
+      })
+      if (error) throw error
+      toast.success(`Password reset link sent to ${editingUser.email}`)
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to send reset email')
+    }
+    setResettingPassword(false)
   }
 
   // ──── DELETE ────
@@ -891,6 +911,18 @@ export function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {/* Reset Password — only for Sales Rep, Sales Manager, Admin */}
+            {editingUser && ['sales_rep', 'sales_manager', 'admin'].includes(editingUser.role) && (
+              <Button
+                variant="outline"
+                onClick={handleResetPassword}
+                disabled={resettingPassword}
+                className="w-full border-[#ff66c4]/30 text-[#ff66c4] hover:bg-[#ff66c4]/10 hover:text-[#ff66c4]"
+              >
+                {resettingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+                Reset Password
+              </Button>
+            )}
             <Button onClick={handleSaveEdit} disabled={savingEdit} className="w-full bg-gradient-to-r from-blue-500 to-[#9a02d0] text-white">
               {savingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Save Changes
