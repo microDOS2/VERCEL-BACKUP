@@ -60,12 +60,13 @@ export function StoreLocator() {
     async function fetchStores() {
       setLoading(true);
       try {
-        const { data: wholesalers, error: userError } = await supabase.from('users').select('id').eq('role', 'wholesaler').eq('status', 'approved');
-        if (userError || !wholesalers || wholesalers.length === 0) { setStores([]); setLoading(false); return; }
-        const wholesalerIds = wholesalers.map(w => w.id);
-        const { data, error } = await supabase.from('wholesaler_store_locations').select('*').in('user_id', wholesalerIds).eq('is_active', true).order('created_at', { ascending: false });
-        if (error) { console.error(error); setStores([]); setLoading(false); return; }
-        if (data) {
+        const { data, error } = await supabase
+          .from('wholesaler_store_locations')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        if (error) { console.error('StoreLocator fetch error:', error); setStores([]); setLoading(false); return; }
+        if (data && data.length > 0) {
           const storesWithCoords = await Promise.all(data.map(async (s: any) => {
             let lat = s.lat ? parseFloat(s.lat) : null; let lng = s.lng ? parseFloat(s.lng) : null;
             if (!lat || !lng) { const result = await geocodeAddress([s.address, s.city, s.state, s.zip].filter(Boolean).join(', ')); if (result) { lat = result.lat; lng = result.lng; } }
