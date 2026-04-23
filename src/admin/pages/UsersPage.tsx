@@ -154,6 +154,11 @@ export function UsersPage() {
   // Territory state management loading
   const [savingStates, setSavingStates] = useState<string | null>(null)
 
+  // Sort state
+  type SortColumn = 'name' | 'email' | 'role' | 'status' | 'manager' | 'location'
+  const [sortColumn, setSortColumn] = useState<SortColumn>('role')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
   // ─── Fetch both users AND pending applications ───
   const fetchAll = async () => {
     setLoading(true)
@@ -240,6 +245,35 @@ export function UsersPage() {
       (a.role || '').toLowerCase().includes(q) ||
       a.status.toLowerCase().includes(q)
     )
+  })
+
+  // Sort
+  const sorted = [...filtered].sort((a, b) => {
+    const getVal = (acct: UnifiedUser, col: SortColumn) => {
+      switch (col) {
+        case 'name': return acct.business_name.toLowerCase()
+        case 'email': return acct.email.toLowerCase()
+        case 'role': return (acct.role || acct.account_type || '').toLowerCase()
+        case 'status': return acct.status.toLowerCase()
+        case 'manager': {
+          if (acct.role === 'sales_manager') {
+            try { const p = JSON.parse(acct.raw?.volume_estimate || '[]'); return Array.isArray(p) ? p.sort().join(',') : '' } catch { return '' }
+          }
+          const sm = allAccounts.filter(u => u.role === 'sales_manager' && u.status === 'approved')
+          const mgr = sm.find(m => m.id === acct.raw?.manager_id)
+          return mgr?.business_name?.toLowerCase() || 'zzz'
+        }
+        case 'location': return `${acct.city || ''}, ${acct.state || ''}`.toLowerCase()
+      }
+    }
+    const aVal = getVal(a, sortColumn)
+    const bVal = getVal(b, sortColumn)
+    let cmp = aVal.localeCompare(bVal)
+    if (cmp !== 0) return sortDirection === 'asc' ? cmp : -cmp
+    // Multi-key fallback: role → status
+    const roleCmp = ((a.role || '') as string).localeCompare((b.role || '') as string)
+    if (roleCmp !== 0) return roleCmp
+    return a.status.localeCompare(b.status)
   })
 
   const approvedCount = allAccounts.filter((a) => a.status === 'approved').length
@@ -520,20 +554,41 @@ export function UsersPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Name</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Email</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Manager</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
+                    {[
+                      { key: 'name' as SortColumn, label: 'Name', align: 'left' },
+                      { key: 'email' as SortColumn, label: 'Email', align: 'left' },
+                      { key: 'role' as SortColumn, label: 'Role', align: 'left' },
+                      { key: 'status' as SortColumn, label: 'Status', align: 'left' },
+                      { key: 'manager' as SortColumn, label: 'Manager', align: 'left' },
+                      { key: 'location' as SortColumn, label: 'Location', align: 'left' },
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors ${
+                          sortColumn === col.key
+                            ? 'text-[#44f80c]'
+                            : 'text-gray-400 hover:text-white'
+                        } ${col.align === 'right' ? 'text-right' : 'text-left'}`}
+                        onClick={() => {
+                          if (sortColumn === col.key) {
+                            setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')
+                          } else {
+                            setSortColumn(col.key)
+                            setSortDirection('asc')
+                          }
+                        }}
+                      >
+                        {col.label} {sortColumn === col.key && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                    ))}
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filtered.length === 0 && (
+                  {sorted.length === 0 && (
                     <tr><td colSpan={7} className="text-center text-gray-500 py-8">No accounts found</td></tr>
                   )}
-                  {filtered.map((account) => {
+                  {sorted.map((account) => {
                     const role = account.role || account.account_type || ''
                     const displayName = account.source === 'applications'
                       ? (account.contact_name ? `${account.contact_name} — ${account.business_name}` : account.business_name)
