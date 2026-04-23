@@ -447,8 +447,6 @@ export function UsersPage() {
         a.id === accountId ? { ...a, raw: { ...a.raw, manager_id: managerId || null } } : a
       ))
       toast.success(managerId ? 'Manager assigned successfully' : 'Manager removed')
-      // Refresh in background to ensure consistency
-      await fetchAll()
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update manager')
       // Refresh on error to revert optimistic update
