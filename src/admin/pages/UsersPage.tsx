@@ -442,10 +442,17 @@ export function UsersPage() {
         .update({ manager_id: managerId || null })
         .eq('id', accountId)
       if (error) throw error
-      toast.success(managerId ? 'Manager assigned!' : 'Manager removed!')
+      // Optimistic UI update — update local state immediately
+      setAllAccounts(prev => prev.map(a =>
+        a.id === accountId ? { ...a, raw: { ...a.raw, manager_id: managerId || null } } : a
+      ))
+      toast.success(managerId ? 'Manager assigned successfully' : 'Manager removed')
+      // Refresh in background to ensure consistency
       await fetchAll()
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to update')
+      toast.error(err?.message || 'Failed to update manager')
+      // Refresh on error to revert optimistic update
+      await fetchAll()
     }
     setSavingManager(null)
   }
