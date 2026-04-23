@@ -151,8 +151,6 @@ export function UsersPage() {
   // Manager assignment loading
   const [savingManager, setSavingManager] = useState<string | null>(null)
 
-  // Password reset loading
-
   // Territory state management loading
   const [savingStates, setSavingStates] = useState<string | null>(null)
 
@@ -409,8 +407,6 @@ export function UsersPage() {
       toast.error(err?.message || 'Error')
     }
     setSavingEdit(false)
-  }
-
   }
 
   // ──── DELETE ────
