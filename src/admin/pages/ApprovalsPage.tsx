@@ -266,24 +266,16 @@ export function ApprovalsPage() {
                             Manager: {app.manager_name}
                           </Badge>
                         )}
-                        {app.assigned_rep_name ? (
-                          <>
-                            <Badge className="bg-[#44f80c]/20 text-[#44f80c]">
-                              <Users className="w-3 h-3 mr-1" />
-                              Rep: {app.assigned_rep_name}
-                            </Badge>
-                            {(() => {
-                              const hasMgr = app.assigned_rep_id ? repHasManager.get(app.assigned_rep_id) : true
-                              return hasMgr === false ? (
-                                <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
-                                  ⚠️ Unmanaged
-                                </Badge>
-                              ) : null
-                            })()}
-                          </>
-                        ) : (
-                          <Badge className="bg-gray-700 text-gray-400">Unassigned</Badge>
-                        )}
+                        {(() => {
+                          const hasMgr = app.assigned_rep_id ? repHasManager.get(app.assigned_rep_id) : true
+                          if (app.assigned_rep_name && hasMgr === false) {
+                            return <Badge className="bg-yellow-500/20 text-yellow-400">⚠️ Unmanaged</Badge>
+                          }
+                          if (app.assigned_rep_name) {
+                            return <Badge className="bg-[#44f80c]/20 text-[#44f80c]"><Users className="w-3 h-3 mr-1" />Rep: {app.assigned_rep_name}</Badge>
+                          }
+                          return <Badge className="bg-gray-700 text-gray-400">Unassigned</Badge>
+                        })()}
                       </div>
                     </div>
 
