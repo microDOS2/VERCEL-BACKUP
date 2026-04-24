@@ -53,7 +53,9 @@ export function AccountsPage() {
   const [selectedRep, setSelectedRep] = useState<Record<string, string>>({})
   const [selectedStoreRep, setSelectedStoreRep] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
-  const [savingStore, setSavingStore] = useState<string | null>(null)
+  const [managers, setManagers] = useState<SalesRep[]>([])
+  const [selectedManager, setSelectedManager] = useState<Record<string, string>>({})
+  const [savingManager, setSavingManager] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const parseStoreNumber = (name: string): { number: string; cleanName: string } => {
@@ -116,6 +118,7 @@ export function AccountsPage() {
 
     setAccounts(accountItems)
     setReps((repsData || []).map((r: any) => ({ id: r.id, business_name: r.business_name, email: r.email })))
+    setManagers((managersData || []).map((m: any) => ({ id: m.id, business_name: m.business_name, email: m.email })))
     setLoading(false)
   }, [])
 
@@ -129,6 +132,24 @@ export function AccountsPage() {
     setSaving(null)
   }
   const handleUnassignAccount = async (accountId: string) => { if (!confirm('Remove?')) return; const { error } = await supabase.from('rep_account_assignments').delete().eq('account_id', accountId); error ? toast.error('Error') : (toast.success('Unassigned'), fetchAll()) }
+
+  const handleAssignManager = async (accountId: string) => {
+    const managerId = selectedManager[accountId]
+    setSavingManager(accountId)
+    try {
+      const { error } = await supabase.rpc('assign_manager', {
+        target_user_id: accountId,
+        new_manager_id: managerId || null
+      })
+      if (error) throw error
+      setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, manager_name: managerId ? (managers.find(m => m.id === managerId)?.business_name || managers.find(m => m.id === managerId)?.email || 'Unknown') : null } : a))
+      toast.success(managerId ? 'Manager assigned!' : 'Manager removed')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update manager')
+      await fetchAll()
+    }
+    setSavingManager(null)
+  }
 
   const handleAssignStore = async (storeId: string) => {
     const repId = selectedStoreRep[storeId]; if (!repId) { toast.error('Select a Sales Rep'); return }
@@ -175,12 +196,25 @@ export function AccountsPage() {
                         </div>
                         {acct.stores.length > 0 && <button onClick={() => toggle(acct.id)} className="flex items-center gap-1 text-sm text-[#9a02d0] hover:text-[#ff66c4] mt-2">{expanded[acct.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}<Store className="w-4 h-4" />{acct.stores.length} store{acct.stores.length !== 1 ? 's' : ''}</button>}
                       </div>
-                      <div className="flex items-center gap-2 w-full lg:w-auto">
-                        <Select value={selectedRep[acct.id] || acct.assigned_rep_id || ''} onValueChange={val => setSelectedRep(p => ({ ...p, [acct.id]: val }))}>
-                          <SelectTrigger className="w-56 bg-[#0a0514] border-white/10 text-white text-sm"><SelectValue placeholder="Select Account Rep" /></SelectTrigger>
-                          <SelectContent className="bg-[#150f24] border-white/10">{reps.map(r => <SelectItem key={r.id} value={r.id}>{r.business_name || r.email}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Button size="sm" onClick={() => handleAssignAccount(acct.id)} disabled={saving === acct.id} className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white">{saving === acct.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}</Button>
+                      <div className="flex flex-col gap-2 w-full lg:w-auto">
+                        <div className="flex items-center gap-2">
+                          <Select value={selectedRep[acct.id] || acct.assigned_rep_id || ''} onValueChange={val => setSelectedRep(p => ({ ...p, [acct.id]: val }))}>
+                            <SelectTrigger className="w-56 bg-[#0a0514] border-white/10 text-white text-sm"><SelectValue placeholder="Select Account Rep" /></SelectTrigger>
+                            <SelectContent className="bg-[#150f24] border-white/10">{reps.map(r => <SelectItem key={r.id} value={r.id}>{r.business_name || r.email}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <Button size="sm" onClick={() => handleAssignAccount(acct.id)} disabled={saving === acct.id} className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white">{saving === acct.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}</Button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="w-56 bg-[#0a0514] border border-white/10 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-[#9a02d0]/50"
+                            value={selectedManager[acct.id] || (() => { const m = managers.find(mgr => mgr.business_name === acct.manager_name || mgr.email === acct.manager_name); return m?.id || '' })()}
+                            onChange={e => setSelectedManager(p => ({ ...p, [acct.id]: e.target.value }))}
+                          >
+                            <option value="">— No Manager —</option>
+                            {managers.map(m => <option key={m.id} value={m.id}>{m.business_name || m.email}</option>)}
+                          </select>
+                          <Button size="sm" onClick={() => handleAssignManager(acct.id)} disabled={savingManager === acct.id} className="bg-gradient-to-r from-[#ff66c4] to-[#9a02d0] text-white">{savingManager === acct.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}</Button>
+                        </div>
                       </div>
                     </div>
                   </div>
