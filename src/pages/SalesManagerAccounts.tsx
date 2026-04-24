@@ -74,8 +74,12 @@ export function SalesManagerAccounts() {
         return;
       }
 
-      // Parse manager territory states
-      const myStates: string[] = userData?.volume_estimate ? JSON.parse(userData.volume_estimate) : [];
+      // Fetch manager territory states from dedicated table
+      const { data: statesData } = await supabase
+        .from('manager_state_assignments')
+        .select('state_code')
+        .eq('manager_id', session.user.id)
+      const myStates: string[] = (statesData || []).map((s: any) => s.state_code).sort()
       setManagerStates(myStates);
       setManagerName(userData?.business_name || '');
 
