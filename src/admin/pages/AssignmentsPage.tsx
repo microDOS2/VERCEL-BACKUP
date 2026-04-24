@@ -56,6 +56,7 @@ export function AccountsPage() {
   const [managers, setManagers] = useState<SalesRep[]>([])
   const [selectedManager, setSelectedManager] = useState<Record<string, string>>({})
   const [savingManager, setSavingManager] = useState<string | null>(null)
+  const [savingStore, setSavingStore] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const parseStoreNumber = (name: string): { number: string; cleanName: string } => {
