@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -155,6 +155,9 @@ export function UsersPage() {
   // Territory state management loading
   const [savingStates, setSavingStates] = useState<string | null>(null)
 
+  // Manager state assignments map (replaces volume_estimate JSON)
+  const [managerStateMap, setManagerStateMap] = useState<Map<string, string[]>>(new Map())
+
   // Sort state
   type SortColumn = 'name' | 'email' | 'role' | 'status' | 'manager' | 'location'
   const [sortColumn, setSortColumn] = useState<SortColumn>('role')
@@ -226,6 +229,20 @@ export function UsersPage() {
       })
 
       setAllAccounts(combined)
+
+      // 3. Fetch manager state assignments (replaces volume_estimate JSON)
+      const { data: assignmentsData } = await supabase
+        .from('manager_state_assignments')
+        .select('manager_id,state_code')
+
+      const map = new Map<string, string[]>()
+      ;(assignmentsData || []).forEach((a: any) => {
+        const existing = map.get(a.manager_id) || []
+        existing.push(a.state_code)
+        map.set(a.manager_id, existing)
+      })
+      map.forEach((states, id) => map.set(id, states.sort()))
+      setManagerStateMap(map)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load accounts')
@@ -258,7 +275,8 @@ export function UsersPage() {
         case 'status': return acct.status.toLowerCase()
         case 'manager': {
           if (acct.role === 'sales_manager') {
-            try { const p = JSON.parse(acct.raw?.volume_estimate || '[]'); return Array.isArray(p) ? p.sort().join(',') : '' } catch { return '' }
+            const states = managerStateMap.get(acct.id) || []
+            return states.join(',')
           }
           const sm = allAccounts.filter(u => u.role === 'sales_manager' && u.status === 'approved')
           const mgr = sm.find(m => m.id === acct.raw?.manager_id)
@@ -494,27 +512,23 @@ export function UsersPage() {
   const handleAddState = async (managerId: string, state: string) => {
     setSavingStates(managerId)
     try {
-      const mgr = allAccounts.find(u => u.id === managerId)
-      const current = (() => { try { const p = mgr?.raw?.volume_estimate ? JSON.parse(mgr.raw.volume_estimate) : []; return Array.isArray(p) ? p : [] } catch { return [] } })()
-      if (current.includes(state)) return
-      // Check if state is already assigned to another sales manager
-      const otherMgr = allAccounts.find(u => {
-        if (u.id === managerId || u.role !== 'sales_manager' || u.status !== 'approved') return false
-        const otherStates = (() => { try { const p = u.raw?.volume_estimate ? JSON.parse(u.raw.volume_estimate) : []; return Array.isArray(p) ? p : [] } catch { return [] } })()
-        return otherStates.includes(state)
-      })
-      if (otherMgr) {
-        toast.error(`${state} is already assigned to ${otherMgr.business_name || 'another manager'}`)
+      const current = managerStateMap.get(managerId) || []
+      if (current.includes(state)) {
         setSavingStates(null)
         return
       }
-      const updated = [...current, state].sort()
-      const { error } = await supabase
-        .from('users')
-        .update({ volume_estimate: JSON.stringify(updated) })
-        .eq('id', managerId)
+      const { error } = await supabase.rpc('assign_state', {
+        p_manager_id: managerId,
+        p_state_code: state,
+      })
       if (error) throw error
-      await fetchAll()
+      setManagerStateMap(prev => {
+        const next = new Map(prev)
+        const existing = next.get(managerId) || []
+        next.set(managerId, [...existing, state].sort())
+        return next
+      })
+      toast.success(`${state} added to territory`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to add state')
     }
@@ -524,15 +538,23 @@ export function UsersPage() {
   const handleRemoveState = async (managerId: string, state: string) => {
     setSavingStates(managerId)
     try {
-      const mgr = allAccounts.find(u => u.id === managerId)
-      const current = (() => { try { const p = mgr?.raw?.volume_estimate ? JSON.parse(mgr.raw.volume_estimate) : []; return Array.isArray(p) ? p : [] } catch { return [] } })()
-      const updated = current.filter((s: string) => s !== state)
-      const { error } = await supabase
-        .from('users')
-        .update({ volume_estimate: JSON.stringify(updated) })
-        .eq('id', managerId)
+      const { error } = await supabase.rpc('remove_state', {
+        p_manager_id: managerId,
+        p_state_code: state,
+      })
       if (error) throw error
-      await fetchAll()
+      setManagerStateMap(prev => {
+        const next = new Map(prev)
+        const existing = next.get(managerId) || []
+        const filtered = existing.filter((s: string) => s !== state)
+        if (filtered.length === 0) {
+          next.delete(managerId)
+        } else {
+          next.set(managerId, filtered)
+        }
+        return next
+      })
+      toast.success(`${state} removed from territory`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to remove state')
     }
@@ -672,7 +694,7 @@ export function UsersPage() {
                         <td className="px-4 py-3">
                           {account.role === 'sales_manager' && account.source === 'users' ? (
                             (() => {
-                              const states = (() => { try { const p = account.raw?.volume_estimate ? JSON.parse(account.raw.volume_estimate) : []; return Array.isArray(p) ? p.sort() : [] } catch { return [] } })()
+                              const states = managerStateMap.get(account.id) || []
                               const isSaving = savingStates === account.id
                               const available = ALL_US_STATES.filter(s => !states.includes(s))
                               return (
