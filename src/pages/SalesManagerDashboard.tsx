@@ -386,16 +386,30 @@ export function SalesManagerDashboard() {
                         const acctNum = acct.referral_code || '';
                         return s.store_number && s.store_number.replace(/[a-z]$/, '') === acctNum;
                       });
-                      if (acctStores.length === 0) return null;
+                      const acctRepAssignment = assignments.find((a) => a.account_id === acct.id);
+                      const acctRep = acctRepAssignment ? allReps.find((r) => r.id === acctRepAssignment.rep_id) : null;
                       return (
                         <div key={acct.id} className="bg-[#0a0514] rounded-lg border border-white/10 overflow-hidden">
                           <button
                             onClick={() => toggleAccount(acct.id)}
                             className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 transition-colors"
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-mono bg-[#9a02d0]/20 text-[#9a02d0] px-2 py-0.5 rounded">Acct #{acct.referral_code}</span>
                               <span className="text-white font-medium">{acct.business_name}</span>
+                              <Badge className={acct.role === 'distributor' ? 'bg-[#ff66c4]/20 text-[#ff66c4] text-xs' : 'bg-[#44f80c]/20 text-[#44f80c] text-xs'}>
+                                {acct.role === 'distributor' ? 'Distributor' : 'Wholesaler'}
+                              </Badge>
+                              {manager && (
+                                <Badge className="bg-[#9a02d0]/20 text-[#9a02d0] text-xs">
+                                  <Shield className="w-3 h-3 mr-1" /> Manager: {manager.business_name || manager.email}
+                                </Badge>
+                              )}
+                              {acctRep && (
+                                <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs">
+                                  <Users className="w-3 h-3 mr-1" /> Rep: {acctRep.business_name || acctRep.email}
+                                </Badge>
+                              )}
                               <span className="text-gray-400 text-sm">({acctStores.length} stores)</span>
                             </div>
                             {expandedAccounts[acct.id] ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
