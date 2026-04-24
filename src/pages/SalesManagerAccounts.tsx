@@ -47,6 +47,8 @@ export function SalesManagerAccounts() {
   const [selectedStoreRep, setSelectedStoreRep] = useState<Record<string, string>>({});
   const [savingStore, setSavingStore] = useState<string | null>(null);
 
+  // Account-level rep assignments lookup
+  const [accountRepMap, setAccountRepMap] = useState<Map<string, DBUser>>(new Map());
 
   const extractRepFromLicense = (license: string | null): string | null => {
     return license && license.startsWith('rep:') ? license.slice(4) : null;
@@ -106,6 +108,25 @@ export function SalesManagerAccounts() {
         .eq('status', 'approved')
         .order('business_name', { ascending: true });
       setAllReps((repsData || []) as DBUser[]);
+
+      // Fetch account-level rep assignments for territory accounts
+      if (accountsData && accountsData.length > 0) {
+        const acctIds = accountsData.map((a: any) => a.id);
+        const { data: assignData } = await supabase
+          .from('rep_account_assignments')
+          .select('account_id, rep_id')
+          .in('account_id', acctIds);
+
+        // Build lookup: account_id → rep
+        const repMap = new Map<string, DBUser>();
+        (repsData || []).forEach((r: any) => repMap.set(r.id, r));
+        const assignmentMap = new Map<string, DBUser>();
+        (assignData || []).forEach((a: any) => {
+          const rep = repMap.get(a.rep_id);
+          if (rep) assignmentMap.set(a.account_id, rep);
+        });
+        setAccountRepMap(assignmentMap);
+      }
 
       // Fetch stores for territory accounts
       if (accountsData && accountsData.length > 0) {
@@ -261,6 +282,19 @@ export function SalesManagerAccounts() {
                             <Badge className={account.role === 'distributor' ? 'bg-[#ff66c4]/20 text-[#ff66c4]' : 'bg-[#44f80c]/20 text-[#44f80c]'}>
                               {account.role === 'distributor' ? 'Distributor' : 'Wholesaler'}
                             </Badge>
+                            {managerName && (
+                              <Badge className="bg-[#9a02d0]/20 text-[#9a02d0] text-xs">
+                                <Shield className="w-3 h-3 mr-1" /> Manager: {managerName}
+                              </Badge>
+                            )}
+                            {(() => {
+                              const rep = accountRepMap.get(account.id);
+                              return rep ? (
+                                <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs">
+                                  <Users className="w-3 h-3 mr-1" /> Account Rep: {rep.business_name || rep.email}
+                                </Badge>
+                              ) : null;
+                            })()}
                           </div>
                           <p className="text-gray-400 text-sm">{account.email}</p>
                           <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
