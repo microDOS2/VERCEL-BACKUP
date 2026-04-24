@@ -325,7 +325,13 @@ export function LandingPage() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-            <div className="bg-[#150f24] border border-green-900/50 p-6 rounded-2xl relative">
+            <a
+              href={contentLinks.lightDoseFocus}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Read Metocin Focus Mechanism PDF"
+              className="block bg-[#150f24] border border-green-900/50 p-6 rounded-2xl relative cursor-pointer hover:border-green-500/70 hover:shadow-[0_0_25px_rgba(68,248,12,0.2)] transition-all duration-200"
+            >
               <div className="absolute top-0 left-0 w-full h-1 bg-[#44f80c] rounded-t-2xl opacity-50" />
               <h4 className="text-2xl font-bold mb-1">LIGHT</h4>
               <div className="flex items-baseline gap-2 mb-6">
@@ -350,7 +356,7 @@ export function LandingPage() {
               <div className="text-xs text-gray-500 pt-4 border-t border-white/10">
                 ≈ ½ gram dried mushrooms
               </div>
-            </div>
+            </a>
 
             <a
               href={contentLinks.lowDoseEffects}
