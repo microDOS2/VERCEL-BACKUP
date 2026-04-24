@@ -39,6 +39,7 @@ export function StoresPage() {
   const [reps, setReps] = useState<any[]>([])
   const [selectedRep, setSelectedRep] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  const [repHasManager, setRepHasManager] = useState<Map<string, boolean>>(new Map())
   const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', zip: '', lat: '', lng: '', phone: '', email: '' })
   const pageSize = 10
 
@@ -65,8 +66,13 @@ export function StoresPage() {
       const { data: managersData } = await supabase.from('users').select('id, business_name, email').eq('role', 'sales_manager').eq('status', 'approved')
       const managerMap = new Map(); (managersData || []).forEach((m: any) => managerMap.set(m.id, m))
 
-      const { data: repsData } = await supabase.from('users').select('id, business_name, email').eq('role', 'sales_rep').eq('status', 'approved')
+      const { data: repsData } = await supabase.from('users').select('id, business_name, email, manager_id').eq('role', 'sales_rep').eq('status', 'approved')
       setReps(repsData || [])
+
+      // Build repHasManager lookup
+      const managerCheckMap = new Map<string, boolean>()
+      ;(repsData || []).forEach((r: any) => managerCheckMap.set(r.id, !!r.manager_id))
+      setRepHasManager(managerCheckMap)
       const repMap = new Map(); (repsData || []).forEach((r: any) => repMap.set(r.id, r))
 
       const transformed = (storeData || []).map((s: any) => {
@@ -150,6 +156,12 @@ export function StoresPage() {
                 {s.assigned_rep_name ? (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[#44f80c] bg-[#44f80c]/10 px-2 py-0.5 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {s.assigned_rep_name}</span>
+                    {(() => {
+                      const hasMgr = s.assigned_rep_id ? repHasManager.get(s.assigned_rep_id) : true
+                      return hasMgr === false ? (
+                        <span className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded flex items-center gap-1">⚠️ Unmanaged</span>
+                      ) : null
+                    })()}
                     <button onClick={() => handleUnassignStore(s.id)} className="text-xs text-red-400 hover:text-red-300 underline"><UserMinus className="w-3 h-3 inline" /></button>
                   </div>
                 ) : <span className="text-xs text-gray-500">Unassigned</span>}
