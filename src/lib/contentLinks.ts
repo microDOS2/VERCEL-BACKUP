@@ -18,6 +18,9 @@ export const contentLinks = {
 
   // MODERATE dosage card → low dose effects PDF
   lowDoseEffects: `${CONTENT_BASE_URL}/content-documents/low-dose-effects.pdf`,
+
+  // LIGHT dosage card → Metocin focus mechanism PDF
+  lightDoseFocus: `${CONTENT_BASE_URL}/content-documents/metocin-focus-mechanism.pdf`,
 } as const;
 
 export type ContentLinkKey = keyof typeof contentLinks;
