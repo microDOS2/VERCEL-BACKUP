@@ -58,6 +58,7 @@ export function AccountsPage() {
   const [savingManager, setSavingManager] = useState<string | null>(null)
   const [savingStore, setSavingStore] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [repHasManager, setRepHasManager] = useState<Map<string, boolean>>(new Map())
 
   const parseStoreNumber = (name: string): { number: string; cleanName: string } => {
     const m = name.match(/^(\d+[a-z])\s*-\s*(.+)$/)
@@ -73,10 +74,12 @@ export function AccountsPage() {
     const { data: usersData } = await supabase.from('users').select('id, business_name, email, phone, role, city, state, referral_code, manager_id').eq('status', 'approved').in('role', ['wholesaler', 'distributor']).order('referral_code', { ascending: true })
     const { data: acctAssignData } = await supabase.from('rep_account_assignments').select('account_id, rep_id')
     const { data: storesData } = await supabase.from('wholesaler_store_locations').select('*').order('name', { ascending: true })
-    const { data: repsData } = await supabase.from('users').select('id, business_name, email').eq('role', 'sales_rep').eq('status', 'approved')
+    const { data: repsData } = await supabase.from('users').select('id, business_name, email, manager_id').eq('role', 'sales_rep').eq('status', 'approved')
     const { data: managersData } = await supabase.from('users').select('id, business_name, email').eq('role', 'sales_manager').eq('status', 'approved')
 
     const repMap = new Map(); (repsData || []).forEach((r: any) => repMap.set(r.id, r))
+    const managerCheckMap = new Map<string, boolean>(); (repsData || []).forEach((r: any) => managerCheckMap.set(r.id, !!r.manager_id))
+    setRepHasManager(managerCheckMap)
     const managerMap = new Map(); (managersData || []).forEach((m: any) => managerMap.set(m.id, m))
     const acctAssignMap = new Map(); (acctAssignData || []).forEach((a: any) => acctAssignMap.set(a.account_id, a.rep_id))
 
@@ -188,12 +191,16 @@ export function AccountsPage() {
                           {acct.manager_name && (
                             <Badge className="bg-[#9a02d0]/20 text-[#9a02d0]"><Shield className="w-3 h-3 mr-1" /> Manager: {acct.manager_name}</Badge>
                           )}
-                          {acct.assigned_rep_name ? (
-                            <>
-                              <Badge className="bg-[#44f80c]/20 text-[#44f80c]"><Users className="w-3 h-3 mr-1" /> Account Rep: {acct.assigned_rep_name}</Badge>
-                              <button onClick={() => handleUnassignAccount(acct.id)} className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-0.5"><UserMinus className="w-3 h-3" /> Remove</button>
-                            </>
-                          ) : <Badge className="bg-gray-700 text-gray-400">Account Unassigned</Badge>}
+                          {(() => {
+                            const hasMgr = acct.assigned_rep_id ? repHasManager.get(acct.assigned_rep_id) : true
+                            if (acct.assigned_rep_name && hasMgr === false) {
+                              return <Badge className="bg-yellow-500/20 text-yellow-400">⚠️ Unmanaged</Badge>
+                            }
+                            if (acct.assigned_rep_name) {
+                              return <><Badge className="bg-[#44f80c]/20 text-[#44f80c]"><Users className="w-3 h-3 mr-1" /> Account Rep: {acct.assigned_rep_name}</Badge><button onClick={() => handleUnassignAccount(acct.id)} className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-0.5"><UserMinus className="w-3 h-3" /> Remove</button></>
+                            }
+                            return <Badge className="bg-gray-700 text-gray-400">Account Unassigned</Badge>
+                          })()}
                         </div>
                         {acct.stores.length > 0 && <button onClick={() => toggle(acct.id)} className="flex items-center gap-1 text-sm text-[#9a02d0] hover:text-[#ff66c4] mt-2">{expanded[acct.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}<Store className="w-4 h-4" />{acct.stores.length} store{acct.stores.length !== 1 ? 's' : ''}</button>}
                       </div>
@@ -234,12 +241,16 @@ export function AccountsPage() {
                                 {store.manager_name && (
                                   <Badge className="bg-[#9a02d0]/20 text-[#9a02d0] text-xs"><Shield className="w-3 h-3 mr-1" /> Manager: {store.manager_name}</Badge>
                                 )}
-                                {store.assigned_rep_name ? (
-                                  <>
-                                    <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs"><Users className="w-3 h-3 mr-1" /> Store Rep: {store.assigned_rep_name}</Badge>
-                                    <button onClick={() => handleUnassignStore(store.id)} className="text-xs text-red-400 hover:text-red-300 underline">Remove</button>
-                                  </>
-                                ) : <Badge className="bg-gray-700 text-gray-400 text-xs">Store Unassigned</Badge>}
+                                {(() => {
+                                  const hasMgr = store.assigned_rep_id ? repHasManager.get(store.assigned_rep_id) : true
+                                  if (store.assigned_rep_name && hasMgr === false) {
+                                    return <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">⚠️ Unmanaged</Badge>
+                                  }
+                                  if (store.assigned_rep_name) {
+                                    return <><Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs"><Users className="w-3 h-3 mr-1" /> Store Rep: {store.assigned_rep_name}</Badge><button onClick={() => handleUnassignStore(store.id)} className="text-xs text-red-400 hover:text-red-300 underline">Remove</button></>
+                                  }
+                                  return <Badge className="bg-gray-700 text-gray-400 text-xs">Store Unassigned</Badge>
+                                })()}
                               </div>
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto">
