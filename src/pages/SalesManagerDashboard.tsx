@@ -34,6 +34,22 @@ import { supabase } from '@/lib/supabase';
 import type { DBUser } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+// ─── Audit Log Helper ───
+async function logAudit(action: string, entity_type: string, entity_id: string, details: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    await supabase.from('audit_log').insert({
+      action,
+      entity_type,
+      entity_id,
+      user_id: session?.user?.id || null,
+      details,
+    });
+  } catch {
+    // Silent fail
+  }
+}
+
 interface AssignmentData {
   id: string;
   rep_id: string;
@@ -212,15 +228,28 @@ export function SalesManagerDashboard() {
     const repId = selectedStoreRep[storeId];
     if (!repId) { toast.error('Select a Sales Rep'); return; }
     setSavingStore(storeId);
+    const store = territoryStores.find(s => s.id === storeId);
+    const oldRepId = store ? extractRepFromLicense(store.license_number) : null;
     const { error } = await supabase.from('wholesaler_store_locations').update({ license_number: `rep:${repId}` }).eq('id', storeId);
-    if (error) { toast.error('Failed: ' + error.message); } else { toast.success('Assigned!'); window.location.reload(); }
+    if (error) { toast.error('Failed: ' + error.message); } else {
+      const rep = salesReps.find(r => r.id === repId);
+      const oldRep = oldRepId ? salesReps.find(r => r.id === oldRepId) : null;
+      await logAudit('store_rep_assigned', 'store', storeId, `Store: ${store?.name || storeId} | Assigned: ${rep?.business_name || rep?.email || repId}${oldRep ? ` (was: ${oldRep.business_name || oldRep.email})` : ''}`);
+      toast.success('Assigned!'); window.location.reload();
+    }
     setSavingStore(null);
   };
 
   const handleUnassignStore = async (storeId: string) => {
     if (!confirm('Remove store rep assignment?')) return;
+    const store = territoryStores.find(s => s.id === storeId);
+    const oldRepId = store ? extractRepFromLicense(store.license_number) : null;
     const { error } = await supabase.from('wholesaler_store_locations').update({ license_number: null }).eq('id', storeId);
-    if (error) { toast.error('Error'); } else { toast.success('Unassigned'); window.location.reload(); }
+    if (error) { toast.error('Error'); } else {
+      const oldRep = oldRepId ? salesReps.find(r => r.id === oldRepId) : null;
+      await logAudit('store_rep_unassigned', 'store', storeId, `Store: ${store?.name || storeId} | Removed: ${oldRep?.business_name || oldRep?.email || oldRepId || 'unknown'}`);
+      toast.success('Unassigned'); window.location.reload();
+    }
   };
 
   const toggleAccount = (acctId: string) => {
