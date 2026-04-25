@@ -74,12 +74,9 @@ export function AdminLayout() {
         setAdminName(data.business_name || 'Admin')
         setAdminEmail(data.email || 'admin@microdos2.com')
         setIsAuthorized(true)
-      } else if (data.role === 'sales_manager') {
-        navigate('/sales-manager-accounts')
-      } else if (data.role === 'sales_rep') {
-        navigate('/sales-rep')
       } else {
-        navigate('/')
+        // Not an admin — show access denied instead of redirecting
+        setIsAuthorized(false)
       }
     }
     checkAuth()
@@ -105,8 +102,24 @@ export function AdminLayout() {
     )
   }
 
-  // Non-admin users are redirected — don't render admin UI
-  if (!isAuthorized) return null
+  // Non-admin users — show access denied with logout option
+  if (!isAuthorized) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[#0a0514] text-white p-4">
+        <Shield className="w-16 h-16 text-red-400 mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+        <p className="text-gray-400 mb-6 text-center max-w-md">
+          You are logged in as a non-admin user. Please log out and sign in with an admin account to access this area.
+        </p>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#9a02d0] to-[#ff66c4] rounded-lg font-medium hover:opacity-90 transition-opacity"
+        >
+          <LogOut className="w-4 h-4" /> Log Out & Switch Account
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0514] text-white flex">
