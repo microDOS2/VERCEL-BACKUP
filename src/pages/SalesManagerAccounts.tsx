@@ -41,6 +41,7 @@ export function SalesManagerAccounts() {
   const [accounts, setAccounts] = useState<DBUser[]>([]);
   const [managerStates, setManagerStates] = useState<string[]>([]);
   const [managerName, setManagerName] = useState<string>('');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const [stores, setStores] = useState<StoreItem[]>([]);
   const [allReps, setAllReps] = useState<DBUser[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -86,6 +87,7 @@ export function SalesManagerAccounts() {
       const myStates: string[] = (statesData || []).map((s: any) => s.state_code).sort();
       setManagerStates(myStates);
       setManagerName(userData?.business_name || '');
+      setCurrentUserId(session.user.id);
 
       // Fetch accounts assigned to this manager (territory)
       const { data: accountsData, error: accountsError } = await supabase
@@ -105,7 +107,7 @@ export function SalesManagerAccounts() {
       // Fetch all approved reps for assignment dropdown
       const { data: repsData } = await supabase
         .from('users')
-        .select('id, business_name, email')
+        .select('id, business_name, email, manager_id')
         .eq('role', 'sales_rep')
         .eq('status', 'approved')
         .order('business_name', { ascending: true });
@@ -403,6 +405,18 @@ export function SalesManagerAccounts() {
                                       <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs">
                                         <Users className="w-3 h-3 mr-1" /> Rep: {store.assigned_rep_name}
                                       </Badge>
+                                      {(() => {
+                                        const rep = allReps.find(r => r.id === store.assigned_rep_id);
+                                        if (rep && rep.manager_id && rep.manager_id !== currentUserId) {
+                                          const repMgr = allReps.find(r => r.id === rep.manager_id);
+                                          return (
+                                            <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
+                                              ⚠️ Cross-Territory
+                                            </Badge>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
                                       <button onClick={() => handleUnassignStore(store.id)} className="text-xs text-red-400 hover:text-red-300 underline">Remove</button>
                                     </>
                                   ) : (
