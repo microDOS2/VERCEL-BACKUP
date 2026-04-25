@@ -34,6 +34,7 @@ interface StoreItem {
   assigned_rep_id: string | null
   assigned_rep_name: string | null
   manager_name: string | null
+  license_number: string | null
 }
 
 interface AccountItem {
@@ -123,6 +124,7 @@ export function AccountsPage() {
           store_number: sn, assigned_rep_id: storeRepId,
           assigned_rep_name: storeRep ? (storeRep.business_name || storeRep.email) : null,
           manager_name: u.manager_id ? (managerMap.get(u.manager_id)?.business_name || managerMap.get(u.manager_id)?.email || null) : null,
+          license_number: s.license_number || null,
         }
       })
 
