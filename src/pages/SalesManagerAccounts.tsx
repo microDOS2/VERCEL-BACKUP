@@ -22,18 +22,19 @@ import type { DBUser } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // ─── Audit Log Helper ───
-async function logAudit(action: string, entity_type: string, entity_id: string, details: string) {
+async function logAudit(action: string, table_name: string, record_id: string, old_data: string | null, new_data: string | null) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     await supabase.from('audit_log').insert({
       action,
-      entity_type,
-      entity_id,
+      table_name,
+      record_id,
+      old_data,
+      new_data,
       user_id: session?.user?.id || null,
-      details,
     });
-  } catch {
-    // Silent fail — don't break user flow if audit fails
+  } catch (e) {
+    console.error('Audit log failed:', e);
   }
 }
 
@@ -217,7 +218,7 @@ export function SalesManagerAccounts() {
       });
       setSelectedAccountRep(prev => { const next = { ...prev }; delete next[accountId]; return next; });
       const rep = allReps.find(r => r.id === repId);
-      await logAudit('account_rep_assigned', 'account', accountId, `Assigned rep: ${rep?.business_name || rep?.email || repId}${oldRep ? ` (was: ${oldRep.business_name || oldRep.email})` : ''}`);
+      await logAudit('account_rep_assigned', 'rep_account_assignments', accountId, oldRep?.business_name || oldRep?.email || null, rep?.business_name || rep?.email || repId);
       toast.success('Account Rep assigned!');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to assign rep');
@@ -233,7 +234,7 @@ export function SalesManagerAccounts() {
       const { error } = await supabase.from('rep_account_assignments').delete().eq('account_id', accountId);
       if (error) throw error;
       setAccountRepMap(prev => { const next = new Map(prev); next.delete(accountId); return next; });
-      await logAudit('account_rep_unassigned', 'account', accountId, `Removed rep: ${oldRep?.business_name || oldRep?.email || 'unknown'}`);
+      await logAudit('account_rep_unassigned', 'rep_account_assignments', accountId, oldRep?.business_name || oldRep?.email || null, null);
       toast.success('Account Rep removed');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to remove rep');
@@ -251,7 +252,7 @@ export function SalesManagerAccounts() {
     if (error) { toast.error('Failed: ' + error.message); } else {
       const rep = allReps.find(r => r.id === repId);
       const oldRep = oldRepId ? allReps.find(r => r.id === oldRepId) : null;
-      await logAudit('store_rep_assigned', 'store', storeId, `Store: ${store?.name || storeId} | Assigned: ${rep?.business_name || rep?.email || repId}${oldRep ? ` (was: ${oldRep.business_name || oldRep.email})` : ''}`);
+      await logAudit('store_rep_assigned', 'wholesaler_store_locations', storeId, oldRep?.business_name || oldRep?.email || null, rep?.business_name || rep?.email || repId);
       toast.success('Assigned!'); window.location.reload();
     }
     setSavingStore(null);
@@ -264,7 +265,7 @@ export function SalesManagerAccounts() {
     const { error } = await supabase.from('wholesaler_store_locations').update({ license_number: null }).eq('id', storeId);
     if (error) { toast.error('Error'); } else {
       const oldRep = oldRepId ? allReps.find(r => r.id === oldRepId) : null;
-      await logAudit('store_rep_unassigned', 'store', storeId, `Store: ${store?.name || storeId} | Removed: ${oldRep?.business_name || oldRep?.email || oldRepId || 'unknown'}`);
+      await logAudit('store_rep_unassigned', 'wholesaler_store_locations', storeId, oldRep?.business_name || oldRep?.email || oldRepId || null, null);
       toast.success('Unassigned'); window.location.reload();
     }
   };
