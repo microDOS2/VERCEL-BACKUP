@@ -9,18 +9,19 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 // ─── Audit Log Helper ───
-async function logAudit(action: string, entity_type: string, entity_id: string, details: string) {
+async function logAudit(action: string, table_name: string, record_id: string, old_data: string | null, new_data: string | null) {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     await supabase.from('audit_log').insert({
       action,
-      entity_type,
-      entity_id,
+      table_name,
+      record_id,
+      old_data,
+      new_data,
       user_id: session?.user?.id || null,
-      details,
     })
-  } catch {
-    // Silent fail
+  } catch (e) {
+    console.error('Audit log failed:', e)
   }
 }
 
@@ -153,7 +154,7 @@ export function AccountsPage() {
     if (error) { toast.error('Failed: ' + error.message) } else {
       const acct = accounts.find(a => a.id === accountId)
       const rep = reps.find(r => r.id === repId)
-      await logAudit('account_rep_assigned', 'account', accountId, `Account: ${acct?.business_name || accountId} | Rep: ${rep?.business_name || rep?.email || repId}`)
+      await logAudit('account_rep_assigned', 'rep_account_assignments', accountId, null, rep?.business_name || rep?.email || repId)
       toast.success('Assigned!')
       fetchAll()
     }
@@ -164,7 +165,7 @@ export function AccountsPage() {
     const acct = accounts.find(a => a.id === accountId)
     const { error } = await supabase.from('rep_account_assignments').delete().eq('account_id', accountId)
     if (error) { toast.error('Error') } else {
-      await logAudit('account_rep_unassigned', 'account', accountId, `Account: ${acct?.business_name || accountId} | Rep removed`)
+      await logAudit('account_rep_unassigned', 'rep_account_assignments', accountId, acct?.business_name || accountId, null)
       toast.success('Unassigned')
       fetchAll()
     }
@@ -185,9 +186,10 @@ export function AccountsPage() {
       const newMgr = managers.find(m => m.id === managerId)
       await logAudit(
         managerId ? 'manager_assigned' : 'manager_unassigned',
-        'user',
+        'users',
         accountId,
-        `${acct?.business_name || accountId} | ${managerId ? `New manager: ${newMgr?.business_name || newMgr?.email || managerId}` : `Removed manager (was: ${oldManager || 'none'})`}`
+        oldManager || null,
+        newMgr?.business_name || newMgr?.email || managerId || null
       )
       toast.success(managerId ? 'Manager assigned!' : 'Manager removed')
     } catch (err: any) {
@@ -206,7 +208,7 @@ export function AccountsPage() {
     if (error) { toast.error('Failed: ' + error.message) } else {
       const rep = reps.find(r => r.id === repId)
       const oldRep = oldRepId ? reps.find(r => r.id === oldRepId) : null
-      await logAudit('store_rep_assigned', 'store', storeId, `Store: ${store?.name || storeId} | Assigned: ${rep?.business_name || rep?.email || repId}${oldRep ? ` (was: ${oldRep.business_name || oldRep.email})` : ''}`)
+      await logAudit('store_rep_assigned', 'wholesaler_store_locations', storeId, oldRep?.business_name || oldRep?.email || null, rep?.business_name || rep?.email || repId)
       toast.success('Assigned!')
       fetchAll()
     }
@@ -219,7 +221,7 @@ export function AccountsPage() {
     const { error } = await supabase.from('wholesaler_store_locations').update({ license_number: null }).eq('id', storeId)
     if (error) { toast.error('Error') } else {
       const oldRep = oldRepId ? reps.find(r => r.id === oldRepId) : null
-      await logAudit('store_rep_unassigned', 'store', storeId, `Store: ${store?.name || storeId} | Removed: ${oldRep?.business_name || oldRep?.email || oldRepId || 'unknown'}`)
+      await logAudit('store_rep_unassigned', 'wholesaler_store_locations', storeId, oldRep?.business_name || oldRep?.email || oldRepId || null, null)
       toast.success('Unassigned')
       fetchAll()
     }
