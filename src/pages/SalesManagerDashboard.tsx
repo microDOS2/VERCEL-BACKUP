@@ -28,6 +28,8 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
@@ -75,6 +77,8 @@ export function SalesManagerDashboard() {
   const [allReps, setAllReps] = useState<DBUser[]>([]);
   const [selectedStoreRep, setSelectedStoreRep] = useState<Record<string, string>>({});
   const [savingStore, setSavingStore] = useState<string | null>(null);
+  const [pendingTransfers, setPendingTransfers] = useState<any[]>([]);
+  const [resolvingTransfer, setResolvingTransfer] = useState<string | null>(null);
   const [expandedAccounts, setExpandedAccounts] = useState<Record<string, boolean>>({});
 
   // Auth guard + data fetch
@@ -194,6 +198,18 @@ export function SalesManagerDashboard() {
         setAssignments([]);
       }
 
+      // Fetch pending transfers for this manager
+      try {
+        const { data: transfersData } = await supabase
+          .from('assignment_transfers')
+          .select('*, rep:rep_id(id, business_name, email), account:account_id(id, business_name, role)')
+          .eq('new_manager_id', session.user.id)
+          .eq('status', 'pending');
+        setPendingTransfers(transfersData || []);
+      } catch {
+        setPendingTransfers([]);
+      }
+
       setLoading(false);
     };
 
@@ -250,6 +266,45 @@ export function SalesManagerDashboard() {
 
   const toggleAccount = (acctId: string) => {
     setExpandedAccounts((p) => ({ ...p, [acctId]: !p[acctId] }));
+  };
+
+  const handleAcceptTransfer = async (transferId: string, accountId: string) => {
+    setResolvingTransfer(transferId);
+    try {
+      const { error } = await supabase
+        .from('assignment_transfers')
+        .update({ status: 'accepted', resolved_at: new Date().toISOString() })
+        .eq('id', transferId);
+      if (error) throw error;
+      setPendingTransfers((prev) => prev.filter((t) => t.id !== transferId));
+      toast.success('Transfer accepted — rep stays assigned');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to accept');
+    }
+    setResolvingTransfer(null);
+  };
+
+  const handleRejectTransfer = async (transferId: string, accountId: string) => {
+    if (!confirm('Remove rep assignment from this account?')) return;
+    setResolvingTransfer(transferId);
+    try {
+      const { error: delError } = await supabase
+        .from('rep_account_assignments')
+        .delete()
+        .eq('account_id', accountId);
+      if (delError) throw delError;
+      const { error } = await supabase
+        .from('assignment_transfers')
+        .update({ status: 'rejected', resolved_at: new Date().toISOString() })
+        .eq('id', transferId);
+      if (error) throw error;
+      setPendingTransfers((prev) => prev.filter((t) => t.id !== transferId));
+      setAssignments((prev) => prev.filter((a) => a.account_id !== accountId));
+      toast.success('Transfer rejected — rep unassigned');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to reject');
+    }
+    setResolvingTransfer(null);
   };
 
 
@@ -326,6 +381,72 @@ export function SalesManagerDashboard() {
               pendingAssignmentCount={accounts.filter((a) => !assignments.some((asgn) => asgn.account_id === a.id)).length}
             />
           </div>
+
+          {/* Incoming Transfers */}
+          {pendingTransfers.length > 0 && (
+            <div className="mb-8">
+              <Card className="bg-[#150f24] border-yellow-500/30">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                    Incoming Transfers ({pendingTransfers.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {pendingTransfers.map((transfer: any) => (
+                      <div key={transfer.id} className="bg-[#0a0514] rounded-lg p-3 border border-yellow-500/20">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div>
+                            <p className="text-white text-sm font-medium">
+                              Rep: {transfer.rep?.business_name || transfer.rep?.email || 'Unknown'}
+                            </p>
+                            <p className="text-gray-400 text-sm">
+                              Account: {transfer.account?.business_name || 'Unknown'}
+                              {' '}
+                              {transfer.account?.role && (
+                                <Badge className={transfer.account.role === 'distributor' ? 'bg-[#ff66c4]/20 text-[#ff66c4] text-[10px]' : 'bg-[#44f80c]/20 text-[#44f80c] text-[10px]'}>
+                                  {transfer.account.role === 'distributor' ? 'Distributor' : 'Wholesaler'}
+                                </Badge>
+                              )}
+                            </p>
+                            <p className="text-gray-500 text-xs mt-1">
+                              From previous manager — {new Date(transfer.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleAcceptTransfer(transfer.id, transfer.account_id)}
+                              disabled={resolvingTransfer === transfer.id}
+                              className="bg-[#44f80c]/20 text-[#44f80c] hover:bg-[#44f80c]/30 h-7 px-2"
+                            >
+                              {resolvingTransfer === transfer.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRejectTransfer(transfer.id, transfer.account_id)}
+                              disabled={resolvingTransfer === transfer.id}
+                              className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-7 px-2"
+                            >
+                              <X className="w-3 h-3" />
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -433,6 +554,11 @@ export function SalesManagerDashboard() {
                               {acctRep && (
                                 <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs">
                                   <Users className="w-3 h-3 mr-1" /> Account Rep: {acctRep.business_name || acctRep.email}
+                                </Badge>
+                              )}
+                              {!acctRep && pendingTransfers.some((t: any) => t.account_id === acct.id) && (
+                                <Badge className="bg-yellow-500/20 text-yellow-400 text-xs">
+                                  <AlertTriangle className="w-3 h-3 mr-1" /> ⚠️ Transfer Pending
                                 </Badge>
                               )}
                               <span className="text-gray-400 text-sm">({acctStores.length} stores)</span>
