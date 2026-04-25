@@ -478,8 +478,8 @@ export function SalesManagerDashboard() {
                                           <SelectContent className="bg-[#150f24] border-white/10">
                                             {allReps.map((r) => (
                                               <SelectItem key={r.id} value={r.id}>
-                                                <span className="block text-white">{r.business_name || r.email}</span>
-                                                <span className="block text-gray-400 text-[10px]">{r.city && r.state ? `${r.city}, ${r.state}` : ''} {r.phone ? `| ${r.phone}` : ''}</span>
+                                                <span className="block text-white text-sm">{r.business_name || r.email}</span>
+                                                <span className="block text-gray-400 text-xs">{r.city && r.state ? `${r.city}, ${r.state}` : ''} {r.phone ? `| ${r.phone}` : ''}</span>
                                               </SelectItem>
                                             ))}
                                           </SelectContent>
