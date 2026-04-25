@@ -16,6 +16,7 @@ export function SalesManagerTeam() {
   const [loading, setLoading] = useState(true);
   const [manager, setManager] = useState<DBUser | null>(null);
   const [salesReps, setSalesReps] = useState<DBUser[]>([]);
+  const [repAccountCounts, setRepAccountCounts] = useState<Map<string, { wholesaler: number; distributor: number }>>(new Map());
 
   useEffect(() => {
     const init = async () => {
@@ -51,8 +52,46 @@ export function SalesManagerTeam() {
 
       if (repsError) {
         toast.error('Failed to fetch sales reps: ' + repsError.message);
-      } else {
-        setSalesReps(repsData || []);
+        setLoading(false);
+        return;
+      }
+
+      const reps = repsData || [];
+      setSalesReps(reps);
+
+      // Fetch account counts per rep
+      if (reps.length > 0) {
+        const repIds = reps.map(r => r.id);
+        const { data: assignmentsData } = await supabase
+          .from('rep_account_assignments')
+          .select('rep_id, account_id')
+          .in('rep_id', repIds);
+
+        if (assignmentsData && assignmentsData.length > 0) {
+          const accountIds = assignmentsData.map((a: any) => a.account_id);
+          const { data: accountsData } = await supabase
+            .from('users')
+            .select('id, role')
+            .in('id', accountIds);
+
+          const roleMap = new Map<string, string>();
+          (accountsData || []).forEach((a: any) => roleMap.set(a.id, a.role));
+
+          const counts = new Map<string, { wholesaler: number; distributor: number }>();
+          reps.forEach((r: DBUser) => counts.set(r.id, { wholesaler: 0, distributor: 0 }));
+
+          (assignmentsData || []).forEach((a: any) => {
+            const role = roleMap.get(a.account_id);
+            const current = counts.get(a.rep_id) || { wholesaler: 0, distributor: 0 };
+            if (role === 'wholesaler') {
+              counts.set(a.rep_id, { ...current, wholesaler: current.wholesaler + 1 });
+            } else if (role === 'distributor') {
+              counts.set(a.rep_id, { ...current, distributor: current.distributor + 1 });
+            }
+          });
+
+          setRepAccountCounts(counts);
+        }
       }
 
       setLoading(false);
@@ -118,12 +157,12 @@ export function SalesManagerTeam() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-[#0a0514] rounded-lg p-3 text-center">
                       <Store className="w-5 h-5 text-[#44f80c] mx-auto mb-1" />
-                      <p className="text-2xl font-bold text-white">—</p>
+                      <p className="text-2xl font-bold text-white">{repAccountCounts.get(rep.id)?.wholesaler ?? 0}</p>
                       <p className="text-gray-400 text-sm">Wholesalers</p>
                     </div>
                     <div className="bg-[#0a0514] rounded-lg p-3 text-center">
                       <Store className="w-5 h-5 text-[#9a02d0] mx-auto mb-1" />
-                      <p className="text-2xl font-bold text-white">—</p>
+                      <p className="text-2xl font-bold text-white">{repAccountCounts.get(rep.id)?.distributor ?? 0}</p>
                       <p className="text-gray-400 text-sm">Distributors</p>
                     </div>
                   </div>
