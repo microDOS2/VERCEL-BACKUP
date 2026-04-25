@@ -26,6 +26,7 @@ interface StoreItem {
   assigned_rep_id: string | null
   assigned_rep_name: string | null
   manager_name: string | null
+  owner_manager_id: string | null
 }
 
 export function StoresPage() {
@@ -94,6 +95,7 @@ export function StoresPage() {
           owner_role: owner?.role || '', assigned_rep_id: repId,
           assigned_rep_name: rep ? (rep.business_name || rep.email) : null,
           manager_name: owner?.manager_id ? (managerMap.get(owner.manager_id)?.business_name || managerMap.get(owner.manager_id)?.email || 'Unknown') : null,
+          owner_manager_id: owner?.manager_id || null,
         }
       })
       setStores(transformed); setTotalCount(count || 0)
@@ -155,11 +157,21 @@ export function StoresPage() {
                 )}
                 {(() => {
                   const hasMgr = s.assigned_rep_id ? repHasManager.get(s.assigned_rep_id) : true
+                  const rep = s.assigned_rep_id ? reps.find((r: any) => r.id === s.assigned_rep_id) : null
+                  const isCrossTerritory = rep && rep.manager_id && s.owner_manager_id && rep.manager_id !== s.owner_manager_id
                   if (s.assigned_rep_name && hasMgr === false) {
                     return <div className="flex items-center gap-2"><span className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded flex items-center gap-1">⚠️ Unmanaged</span><button onClick={() => handleUnassignStore(s.id)} className="text-xs text-red-400 hover:text-red-300 underline"><UserMinus className="w-3 h-3 inline" /></button></div>
                   }
                   if (s.assigned_rep_name) {
-                    return <div className="flex items-center gap-2"><span className="text-xs text-[#44f80c] bg-[#44f80c]/10 px-2 py-0.5 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {s.assigned_rep_name}</span><button onClick={() => handleUnassignStore(s.id)} className="text-xs text-red-400 hover:text-red-300 underline"><UserMinus className="w-3 h-3 inline" /></button></div>
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-[#44f80c] bg-[#44f80c]/10 px-2 py-0.5 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {s.assigned_rep_name}</span>
+                        {isCrossTerritory && (
+                          <span className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded flex items-center gap-1">⚠️ Cross-Territory</span>
+                        )}
+                        <button onClick={() => handleUnassignStore(s.id)} className="text-xs text-red-400 hover:text-red-300 underline"><UserMinus className="w-3 h-3 inline" /></button>
+                      </div>
+                    )
                   }
                   return <span className="text-xs text-gray-500">Unassigned</span>
                 })()}
