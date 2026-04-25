@@ -198,15 +198,19 @@ export function SalesManagerDashboard() {
         setAssignments([]);
       }
 
-      // Fetch pending transfers for this manager
+      // Fetch pending transfers for this manager via RPC (bypasses RLS)
       try {
-        const { data: transfersData } = await supabase
-          .from('assignment_transfers')
-          .select('*, rep:rep_id(id, business_name, email), account:account_id(id, business_name, role)')
-          .eq('new_manager_id', session.user.id)
-          .eq('status', 'pending');
-        setPendingTransfers(transfersData || []);
-      } catch {
+        const { data: transfersData, error: transfersError } = await supabase
+          .rpc('get_pending_transfers', { p_manager_id: session.user.id });
+        if (transfersError) {
+          console.error('get_pending_transfers RPC error:', transfersError);
+          toast.error('Transfer queue failed: ' + transfersError.message);
+          setPendingTransfers([]);
+        } else {
+          setPendingTransfers(transfersData || []);
+        }
+      } catch (e) {
+        console.error('Transfer fetch exception:', e);
         setPendingTransfers([]);
       }
 
@@ -268,18 +272,15 @@ export function SalesManagerDashboard() {
     setExpandedAccounts((p) => ({ ...p, [acctId]: !p[acctId] }));
   };
 
-  const handleAcceptTransfer = async (transferId: string, accountId: string) => {
+  const handleAcceptTransfer = async (transferId: string, _accountId: string) => {
     setResolvingTransfer(transferId);
-    try {
-      const { error } = await supabase
-        .from('assignment_transfers')
-        .update({ status: 'accepted', resolved_at: new Date().toISOString() })
-        .eq('id', transferId);
-      if (error) throw error;
+    const { error } = await supabase.rpc('accept_transfer', { p_transfer_id: transferId });
+    if (error) {
+      console.error('accept_transfer RPC error:', error);
+      toast.error('Failed to accept: ' + error.message);
+    } else {
       setPendingTransfers((prev) => prev.filter((t) => t.id !== transferId));
       toast.success('Transfer accepted — rep stays assigned');
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to accept');
     }
     setResolvingTransfer(null);
   };
@@ -287,22 +288,14 @@ export function SalesManagerDashboard() {
   const handleRejectTransfer = async (transferId: string, accountId: string) => {
     if (!confirm('Remove rep assignment from this account?')) return;
     setResolvingTransfer(transferId);
-    try {
-      const { error: delError } = await supabase
-        .from('rep_account_assignments')
-        .delete()
-        .eq('account_id', accountId);
-      if (delError) throw delError;
-      const { error } = await supabase
-        .from('assignment_transfers')
-        .update({ status: 'rejected', resolved_at: new Date().toISOString() })
-        .eq('id', transferId);
-      if (error) throw error;
+    const { error } = await supabase.rpc('reject_transfer', { p_transfer_id: transferId });
+    if (error) {
+      console.error('reject_transfer RPC error:', error);
+      toast.error('Failed to reject: ' + error.message);
+    } else {
       setPendingTransfers((prev) => prev.filter((t) => t.id !== transferId));
       setAssignments((prev) => prev.filter((a) => a.account_id !== accountId));
       toast.success('Transfer rejected — rep unassigned');
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to reject');
     }
     setResolvingTransfer(null);
   };
