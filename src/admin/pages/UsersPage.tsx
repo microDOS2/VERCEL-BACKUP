@@ -27,18 +27,19 @@ import { toast } from 'sonner'
 import type { DBUser } from '@/lib/supabase'
 
 // ─── Audit Log Helper ───
-async function logAudit(action: string, entity_type: string, entity_id: string, details: string) {
+async function logAudit(action: string, table_name: string, record_id: string, old_data: string | null, new_data: string | null) {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     await supabase.from('audit_log').insert({
       action,
-      entity_type,
-      entity_id,
+      table_name,
+      record_id,
+      old_data,
+      new_data,
       user_id: session?.user?.id || null,
-      details,
     })
-  } catch {
-    // Silent fail
+  } catch (e) {
+    console.error('Audit log failed:', e)
   }
 }
 
@@ -487,9 +488,10 @@ export function UsersPage() {
           const oldMgr = allAccounts.find(u => u.id === oldManagerId)
           await logAudit(
             editManagerId ? 'manager_assigned' : 'manager_unassigned',
-            'user',
+            'users',
             editingUser.id,
-            `${editingUser.business_name || editingUser.email} | ${editManagerId ? `New manager: ${newMgr?.business_name || newMgr?.email || editManagerId}` : `Removed manager (was: ${oldMgr?.business_name || oldMgr?.email || oldManagerId})`}`
+            oldMgr?.business_name || oldMgr?.email || oldManagerId || null,
+            newMgr?.business_name || newMgr?.email || editManagerId || null
           )
         }
         toast.success('User updated!')
@@ -520,9 +522,10 @@ export function UsersPage() {
       const oldMgr = oldMgrId ? allAccounts.find(u => u.id === oldMgrId) : null
       await logAudit(
         managerId ? 'manager_assigned' : 'manager_unassigned',
-        'user',
+        'users',
         accountId,
-        `${acct?.business_name || accountId} | ${managerId ? `New manager: ${newMgr?.business_name || newMgr?.email || managerId}` : `Removed manager (was: ${oldMgr?.business_name || oldMgr?.email || oldMgrId || 'none'})`}`
+        oldMgr?.business_name || oldMgr?.email || oldMgrId || null,
+        newMgr?.business_name || newMgr?.email || managerId || null
       )
       toast.success(managerId ? 'Manager assigned!' : 'Manager removed')
     } catch (err: any) {
@@ -548,7 +551,7 @@ export function UsersPage() {
       } else {
         await supabase.from('applications').delete().eq('id', user.id)
       }
-      await logAudit('user_deleted', 'user', user.id, `Deleted: ${user.business_name || user.email} | Role: ${user.role || user.account_type || 'unknown'}`)
+      await logAudit('user_deleted', 'users', user.id, user.business_name || user.email || null, user.role || user.account_type || null)
       toast.success('Deleted')
       await fetchAll()
     } catch (err: any) {
@@ -578,7 +581,7 @@ export function UsersPage() {
         return next
       })
       const mgr = allAccounts.find(u => u.id === managerId)
-      await logAudit('territory_state_added', 'user', managerId, `Manager: ${mgr?.business_name || mgr?.email || managerId} | State: ${state}`)
+      await logAudit('territory_state_added', 'manager_state_assignments', managerId, null, `${state} | ${mgr?.business_name || mgr?.email || managerId}`)
       toast.success(`${state} added to territory`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to add state')
@@ -606,7 +609,7 @@ export function UsersPage() {
         return next
       })
       const mgr = allAccounts.find(u => u.id === managerId)
-      await logAudit('territory_state_removed', 'user', managerId, `Manager: ${mgr?.business_name || mgr?.email || managerId} | State: ${state}`)
+      await logAudit('territory_state_removed', 'manager_state_assignments', managerId, `${state} | ${mgr?.business_name || mgr?.email || managerId}`, null)
       toast.success(`${state} removed from territory`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to remove state')
