@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { CartDrawer } from '@/components/cart/CartDrawer';
 import { CartButton } from '@/components/cart/CartButton';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 // Mock data for recent orders
 const recentOrders = [
@@ -62,6 +63,7 @@ export function DistributorDashboard() {
       <DistributorSidebar />
       
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <CartDrawer />
         <div className="max-w-7xl mx-auto">
           {/* Header */}

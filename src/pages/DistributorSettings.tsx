@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Building2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 export function DistributorSettings() {
   const [businessName, setBusinessName] = useState('West Coast Distribution');
@@ -21,6 +22,7 @@ export function DistributorSettings() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <DistributorSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
             <Link to="/distributor-dashboard">

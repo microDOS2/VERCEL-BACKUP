@@ -10,6 +10,7 @@ import { ArrowLeft, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { DBUser } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 export function SalesManagerSettings() {
   const navigate = useNavigate();
@@ -81,6 +82,7 @@ export function SalesManagerSettings() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <SalesManagerSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
             <Link to="/sales-manager-dashboard">

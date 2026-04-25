@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import type { DBUser } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 // ─── Audit Log Helper ───
 async function logAudit(action: string, table_name: string, record_id: string, old_data: string | null, new_data: string | null) {
@@ -285,6 +286,7 @@ export function SalesManagerAccounts() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <SalesManagerSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-2">
             <Link to="/sales-manager-dashboard">

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 export function SalesManagerPerformance() {
   const navigate = useNavigate();
@@ -36,6 +37,7 @@ export function SalesManagerPerformance() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <SalesManagerSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
             <Link to="/sales-manager-dashboard">

@@ -58,6 +58,7 @@ import { CartButton } from '@/components/cart/CartButton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 interface Order {
   id: string;
@@ -1007,6 +1008,7 @@ export function WholesalerDashboard() {
 
   return (
     <main className="pt-16 min-h-screen bg-brand-900">
+      <UserInfoBar />
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-64 bg-brand-800 border-r border-brand-700 min-h-screen fixed left-0 top-16 hidden lg:block">

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileSignature, Download, PenTool } from 'lucide-react';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 const agreements = [
   { id: 'AGR-001', title: 'Distributor Agreement 2026', version: '2.1', sentDate: '2026-04-10', status: 'pending' },
@@ -23,6 +24,7 @@ export function DistributorAgreements() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <DistributorSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
             <Link to="/distributor-dashboard">

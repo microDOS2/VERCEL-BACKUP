@@ -21,6 +21,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { salesReps, wholesalers, distributors } from '@/data/sales-hierarchy';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 // Mock current sales rep (in production from auth)
 const currentRep = salesReps[0];
@@ -89,6 +90,7 @@ export function SalesRepDashboard() {
         </aside>
 
         <main className="flex-1 p-4 lg:p-8">
+        <UserInfoBar />
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">

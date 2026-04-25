@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { DBUser } from '@/lib/supabase';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 interface StoreItem {
   id: string;
@@ -372,6 +373,7 @@ export function SalesManagerStores() {
       <SalesManagerSidebar />
 
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">

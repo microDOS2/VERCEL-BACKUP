@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, ShoppingCart, Eye } from 'lucide-react';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 const orders = [
   { id: 'ORD-2026-001', date: '2026-04-15', items: 3, total: 1250.0, status: 'processing' },
@@ -26,6 +27,7 @@ export function DistributorOrders() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <DistributorSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
             <Link to="/distributor-dashboard">

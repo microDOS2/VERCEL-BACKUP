@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileText, Download, Eye } from 'lucide-react';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 const invoices = [
   { id: 'INV-2026-001', invoiceNumber: 'INV-001', amount: 1250.0, dueDate: '2026-05-15', status: 'open' },
@@ -25,6 +26,7 @@ export function DistributorInvoices() {
     <div className="min-h-screen bg-[#0a0514] flex">
       <DistributorSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
+        <UserInfoBar />
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
             <Link to="/distributor-dashboard">

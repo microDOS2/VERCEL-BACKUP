@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { UserInfoBar } from '@/components/UserInfoBar'
 import {
   LayoutDashboard,
   Users,
@@ -231,6 +232,7 @@ export function AdminLayout() {
         </header>
 
         {/* Page Content */}
+        <UserInfoBar />
         <main className="flex-1 p-4 lg:p-8 overflow-auto">
           <Outlet />
         </main>

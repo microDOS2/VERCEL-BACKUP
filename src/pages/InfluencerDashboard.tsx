@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { formatPrice, getPrice } from '@/data/products';
 import type { Product } from '@/types/products';
+import { UserInfoBar } from '@/components/UserInfoBar';
 
 interface InfluencerStats {
   referralCode: string;
@@ -197,6 +198,7 @@ export function InfluencerDashboard() {
         </aside>
 
         <main className="flex-1 p-4 lg:p-8">
+        <UserInfoBar />
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
