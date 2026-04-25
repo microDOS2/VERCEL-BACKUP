@@ -126,13 +126,8 @@ export function SalesManagerDashboard() {
         setSalesReps(repsData || []);
       }
 
-      // Fetch all approved reps (for store-level assignment dropdown)
-      const { data: allRepsData } = await supabase
-        .from('users')
-        .select('id, business_name, email')
-        .eq('role', 'sales_rep')
-        .eq('status', 'approved')
-        .order('business_name', { ascending: true });
+      // Fetch all approved reps via RPC (bypasses RLS, for store-level dropdown)
+      const { data: allRepsData } = await supabase.rpc('get_all_reps');
       setAllReps((allRepsData || []) as DBUser[]);
 
       // Fetch accounts assigned to this manager (territory)
@@ -482,7 +477,10 @@ export function SalesManagerDashboard() {
                                           </SelectTrigger>
                                           <SelectContent className="bg-[#150f24] border-white/10">
                                             {allReps.map((r) => (
-                                              <SelectItem key={r.id} value={r.id}>{r.business_name || r.email}</SelectItem>
+                                              <SelectItem key={r.id} value={r.id}>
+                                                <span className="block text-white">{r.business_name || r.email}</span>
+                                                <span className="block text-gray-400 text-[10px]">{r.city && r.state ? `${r.city}, ${r.state}` : ''} {r.phone ? `| ${r.phone}` : ''}</span>
+                                              </SelectItem>
                                             ))}
                                           </SelectContent>
                                         </Select>
