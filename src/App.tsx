@@ -44,6 +44,7 @@ import { StoresPage } from './admin/pages/StoresPage';
 import { ApprovalsPage } from './admin/pages/ApprovalsPage';
 import { ConfigPage } from './admin/pages/ConfigPage';
 import { AuditLogPage } from './admin/pages/AuditLogPage';
+import { TransferHistoryPage } from './admin/pages/TransferHistoryPage';
 
 function AppContent() {
   const location = useLocation();
@@ -131,6 +132,7 @@ function AppContent() {
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="config" element={<ConfigPage />} />
             <Route path="audit-log" element={<AuditLogPage />} />
+            <Route path="transfers" element={<TransferHistoryPage />} />
           </Route>
 
           {/* Redirect old /command-center URLs to /admin */}

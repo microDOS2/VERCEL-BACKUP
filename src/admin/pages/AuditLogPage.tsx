@@ -81,6 +81,7 @@ export function AuditLogPage() {
             <option value="manager_state_assignments">Territory States</option>
             <option value="rep_account_assignments">Account Reps</option>
             <option value="wholesaler_store_locations">Store Reps</option>
+            <option value="assignment_transfers">Transfers</option>
           </select>
           <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-[#0a0514] hover:bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 transition-colors">
             <Download className="w-4 h-4" /> Export CSV

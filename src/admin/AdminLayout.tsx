@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   Settings,
   ScrollText,
+  ArrowRightLeft,
   Menu,
   X,
   ChevronRight,
@@ -39,6 +40,7 @@ const navItems = [
   { name: 'Approvals', path: '/admin/approvals', icon: ClipboardCheck },
   { name: 'Config', path: '/admin/config', icon: Settings },
   { name: 'Audit Log', path: '/admin/audit-log', icon: ScrollText },
+  { name: 'Transfer History', path: '/admin/transfers', icon: ArrowRightLeft },
 ]
 
 export function AdminLayout() {
