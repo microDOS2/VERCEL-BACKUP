@@ -136,6 +136,7 @@ export function UsersPage() {
   const [editStatus, setEditStatus] = useState('')
   const [editPassword, setEditPassword] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [editManagerId, setEditManagerId] = useState('')
 
   // Password modal
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -144,9 +145,6 @@ export function UsersPage() {
 
   // Action loading
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-
-  // Manager assignment loading
-  const [savingManager, setSavingManager] = useState<string | null>(null)
 
   // Territory state management loading
   const [savingStates, setSavingStates] = useState<string | null>(null)
@@ -160,7 +158,7 @@ export function UsersPage() {
   const [managerLookup, setManagerLookup] = useState<Map<string, DBUser>>(new Map())
 
   // Sort state
-  type SortColumn = 'name' | 'email' | 'role' | 'manager' | 'location'
+  type SortColumn = 'name' | 'email' | 'role' | 'location'
   const [sortColumn, setSortColumn] = useState<SortColumn>('role')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -289,15 +287,6 @@ export function UsersPage() {
         case 'name': return acct.business_name.toLowerCase()
         case 'email': return acct.email.toLowerCase()
         case 'role': return (acct.role || acct.account_type || '').toLowerCase()
-        case 'manager': {
-          if (acct.role === 'sales_manager') {
-            const states = managerStateMap.get(acct.id) || []
-            return states.join(',')
-          }
-          const sm = allAccounts.filter(u => u.role === 'sales_manager' && u.status === 'approved')
-          const mgr = sm.find(m => m.id === acct.raw?.manager_id)
-          return mgr?.business_name?.toLowerCase() || 'zzz'
-        }
         case 'location': return `${acct.city || ''}, ${acct.state || ''}`.toLowerCase()
       }
     }
@@ -417,6 +406,7 @@ export function UsersPage() {
     setEditState(user.state || '')
     setEditStatus(user.status || 'approved')
     setEditPassword(user.raw?.plain_password || '')
+    setEditManagerId(user.raw?.manager_id || '')
     setShowEditModal(true)
   }
 
@@ -468,6 +458,18 @@ export function UsersPage() {
       if (error) {
         toast.error('Failed to update: ' + error.message)
       } else {
+        // Update manager_id if changed
+        if (editManagerId !== (editingUser.raw?.manager_id || '')) {
+          const { error: mgrError } = await supabase.rpc('assign_manager', {
+            target_user_id: editingUser.id,
+            new_manager_id: editManagerId || null
+          })
+          if (mgrError) {
+            toast.error('Profile updated but manager assignment failed: ' + mgrError.message)
+            setSavingEdit(false)
+            return
+          }
+        }
         toast.success('User updated!')
         setShowEditModal(false)
         await fetchAll()
@@ -504,14 +506,13 @@ export function UsersPage() {
 
   // ──── ASSIGN MANAGER TO ACCOUNT ────
   const handleAssignManager = async (accountId: string, managerId: string) => {
-    setSavingManager(accountId)
     try {
       const { error } = await supabase.rpc('assign_manager', {
         target_user_id: accountId,
         new_manager_id: managerId || null
       })
       if (error) throw error
-      // Optimistic UI update — update local state immediately
+      // Optimistic UI update
       setAllAccounts(prev => prev.map(a =>
         a.id === accountId ? { ...a, raw: { ...a.raw, manager_id: managerId || null } } : a
       ))
@@ -520,7 +521,6 @@ export function UsersPage() {
       toast.error(err?.message || 'Failed to update manager')
       await fetchAll()
     }
-    setSavingManager(null)
   }
 
   // ──── TERRITORY STATE MANAGEMENT ────
@@ -661,7 +661,6 @@ export function UsersPage() {
                       { key: 'name' as SortColumn, label: 'Name', align: 'left' },
                       { key: 'email' as SortColumn, label: 'Email', align: 'left' },
                       { key: 'role' as SortColumn, label: 'Role', align: 'left' },
-                      { key: 'manager' as SortColumn, label: 'Manager', align: 'left' },
                       { key: 'location' as SortColumn, label: 'Location', align: 'left' },
                     ].map((col) => (
                       <th
@@ -689,7 +688,7 @@ export function UsersPage() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {sorted.length === 0 && (
-                    <tr><td colSpan={7} className="text-center text-gray-500 py-8">No approved users found</td></tr>
+                    <tr><td colSpan={6} className="text-center text-gray-500 py-8">No approved users found</td></tr>
                   )}
                   {sorted.map((account) => {
                     const role = account.role || ''
@@ -706,97 +705,72 @@ export function UsersPage() {
                             {roleLabels[role] || role}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3">
-                          {account.role === 'sales_manager' && account.source === 'users' ? (
-                            (() => {
-                              const states = managerStateMap.get(account.id) || []
-                              const isSaving = savingStates === account.id
-                              const available = ALL_US_STATES.filter(s => !states.includes(s))
-                              const teamReps = allAccounts.filter(u => u.role === 'sales_rep' && u.status === 'approved' && u.raw?.manager_id === account.id)
-                              return (
-                                <div className="space-y-2">
-                                  {states.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1">
-                                      {states.map((s: string) => (
-                                        <span key={s} className="inline-flex items-center gap-1 text-xs bg-[#44f80c]/20 text-[#44f80c] px-2 py-0.5 rounded group">
-                                          {s}
-                                          {!isSaving && (
-                                            <button
-                                              onClick={() => handleRemoveState(account.id, s)}
-                                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[#44f80c]/70 hover:text-[#44f80c]"
-                                              title={`Remove ${s}`}
-                                            >
-                                              <X className="w-3 h-3" />
-                                            </button>
-                                          )}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-gray-500">No territory states — select to add</span>
-                                  )}
-                                  {isSaving && (
-                                    <div className="flex items-center gap-1 text-xs text-[#9a02d0]">
-                                      <Loader2 className="w-3 h-3 animate-spin" /> Saving...
-                                    </div>
-                                  )}
-                                  {available.length > 0 && !isSaving && (
-                                    <select
-                                      key={available.length}
-                                      className="text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#44f80c]/50 w-full max-w-[160px]"
-                                      value=""
-                                      onChange={(e) => { if (e.target.value) { handleAddState(account.id, e.target.value) } }}
-                                    >
-                                      <option value="">+ Add state...</option>
-                                      {available.map(s => <option key={s} value={s}>{s} — {STATE_NAMES[s]}</option>)}
-                                    </select>
-                                  )}
-                                  {available.length === 0 && states.length > 0 && !isSaving && (
-                                    <span className="text-[10px] text-gray-500">All available states assigned</span>
-                                  )}
-                                  {teamReps.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                      {teamReps.map((rep) => (
-                                        <span key={rep.id} className="inline-flex items-center gap-1 text-xs bg-[#9a02d0]/20 text-[#9a02d0] px-2 py-0.5 rounded">
-                                          <Users className="w-3 h-3" /> {rep.business_name || rep.email}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })()
-                          ) : account.role === 'sales_rep' ? (
-                            <select
-                              className="text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#44f80c]/50 w-full max-w-[160px]"
-                              value={account.raw?.manager_id || ''}
-                              onChange={(e) => handleAssignManager(account.id, e.target.value)}
-                              disabled={savingManager === account.id}
-                            >
-                              <option value="">— No Manager —</option>
-                              {(() => { const sm = allAccounts.filter(u => u.role === 'sales_manager' && u.status === 'approved'); return sm.map(m => <option key={m.id} value={m.id}>{m.business_name}</option>) })()}
-                            </select>
-                          ) : (account.role === 'wholesaler' || account.role === 'distributor') ? (
-                            <select
-                              className="text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#44f80c]/50 w-full max-w-[140px]"
-                              value={account.raw?.manager_id || ''}
-                              onChange={(e) => handleAssignManager(account.id, e.target.value)}
-                              disabled={savingManager === account.id}
-                            >
-                              <option value="">— No Manager —</option>
-                              {(() => { const sm = allAccounts.filter(u => u.role === 'sales_manager' && u.status === 'approved'); return sm.map(m => <option key={m.id} value={m.id}>{m.business_name}</option>) })()}
-                            </select>
-                          ) : (
-                            <span className="text-xs text-gray-500">—</span>
-                          )}
-                        </td>
                         <td className="px-4 py-3 text-gray-400 text-sm">
                           {account.city && account.state ? `${account.city}, ${account.state}` : '—'}
                         </td>
                         {/* ─── Details Column ─── */}
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1.5 items-center">
-                            {(account.role === 'wholesaler' || account.role === 'distributor') ? (
+                            {account.role === 'sales_manager' ? (
+                              (() => {
+                                const states = managerStateMap.get(account.id) || []
+                                const isSaving = savingStates === account.id
+                                const available = ALL_US_STATES.filter(s => !states.includes(s))
+                                const teamReps = allAccounts.filter(u => u.role === 'sales_rep' && u.raw?.manager_id === account.id)
+                                return (
+                                  <div className="space-y-1.5">
+                                    {states.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
+                                        {states.map((s: string) => (
+                                          <span key={s} className="inline-flex items-center gap-1 text-xs bg-[#44f80c]/20 text-[#44f80c] px-2 py-0.5 rounded group">
+                                            {s}
+                                            {!isSaving && (
+                                              <button
+                                                onClick={() => handleRemoveState(account.id, s)}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity text-[#44f80c]/70 hover:text-[#44f80c]"
+                                                title={`Remove ${s}`}
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-500">No territory states</span>
+                                    )}
+                                    {isSaving && (
+                                      <div className="flex items-center gap-1 text-xs text-[#9a02d0]">
+                                        <Loader2 className="w-3 h-3 animate-spin" /> Saving...
+                                      </div>
+                                    )}
+                                    {available.length > 0 && !isSaving && (
+                                      <select
+                                        key={available.length}
+                                        className="text-xs bg-[#0a0514] border border-white/10 rounded px-2 py-1 text-gray-300 focus:outline-none focus:border-[#44f80c]/50 w-full max-w-[160px]"
+                                        value=""
+                                        onChange={(e) => { if (e.target.value) { handleAddState(account.id, e.target.value) } }}
+                                      >
+                                        <option value="">+ Add state...</option>
+                                        {available.map(s => <option key={s} value={s}>{s} — {STATE_NAMES[s]}</option>)}
+                                      </select>
+                                    )}
+                                    {available.length === 0 && states.length > 0 && !isSaving && (
+                                      <span className="text-[10px] text-gray-500">All states assigned</span>
+                                    )}
+                                    {teamReps.length > 0 && (
+                                      <div className="flex flex-wrap gap-1">
+                                        {teamReps.map((rep) => (
+                                          <span key={rep.id} className="inline-flex items-center gap-1 text-xs bg-[#9a02d0]/20 text-[#9a02d0] px-2 py-0.5 rounded">
+                                            <Users className="w-3 h-3" /> {rep.business_name || rep.email}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })()
+                            ) : (account.role === 'wholesaler' || account.role === 'distributor') ? (
                               <>
                                 <Badge className="bg-[#44f80c]/20 text-[#44f80c] text-xs">
                                   {storeCountMap.get(account.id) || 0} store{storeCountMap.get(account.id) === 1 ? '' : 's'}
@@ -813,20 +787,6 @@ export function UsersPage() {
                                   return (
                                     <Badge className="bg-gray-700 text-gray-400 text-xs">No Rep Assigned</Badge>
                                   )
-                                })()}
-                              </>
-                            ) : account.role === 'sales_manager' ? (
-                              <>
-                                {(() => {
-                                  const teamReps = allAccounts.filter(u => u.role === 'sales_rep' && u.raw?.manager_id === account.id)
-                                  if (teamReps.length > 0) {
-                                    return (
-                                      <Badge className="bg-[#9a02d0]/20 text-[#9a02d0] text-xs">
-                                        <Users className="w-3 h-3 mr-1" /> {teamReps.length} team rep{teamReps.length === 1 ? '' : 's'}
-                                      </Badge>
-                                    )
-                                  }
-                                  return <span className="text-xs text-gray-500">No team reps</span>
                                 })()}
                               </>
                             ) : account.role === 'sales_rep' ? (
@@ -1026,6 +986,21 @@ export function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {editingUser && ['sales_rep', 'wholesaler', 'distributor', 'influencer'].includes(editingUser.role || '') && (
+              <div>
+                <Label className="text-gray-300">Sales Manager</Label>
+                <select
+                  className="w-full bg-[#0a0514] border border-white/10 rounded px-3 py-2 text-gray-300 focus:outline-none focus:border-[#44f80c]/50"
+                  value={editManagerId}
+                  onChange={(e) => setEditManagerId(e.target.value)}
+                >
+                  <option value="">— No Manager —</option>
+                  {allAccounts.filter(u => u.role === 'sales_manager').map(m => (
+                    <option key={m.id} value={m.id}>{m.business_name || m.email}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {editingUser && ['sales_rep', 'sales_manager', 'admin'].includes(editingUser.role || '') && (
               <div>
                 <Label className="text-gray-300">Password</Label>
@@ -1072,5 +1047,8 @@ export function UsersPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+/div>
   )
 }
