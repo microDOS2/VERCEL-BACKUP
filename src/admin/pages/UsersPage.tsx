@@ -26,6 +26,22 @@ import {
 import { toast } from 'sonner'
 import type { DBUser } from '@/lib/supabase'
 
+// ─── Audit Log Helper ───
+async function logAudit(action: string, entity_type: string, entity_id: string, details: string) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    await supabase.from('audit_log').insert({
+      action,
+      entity_type,
+      entity_id,
+      user_id: session?.user?.id || null,
+      details,
+    })
+  } catch {
+    // Silent fail
+  }
+}
+
 // ─── Types ───
 interface UnifiedUser {
   id: string
@@ -459,7 +475,8 @@ export function UsersPage() {
         toast.error('Failed to update: ' + error.message)
       } else {
         // Update manager_id if changed
-        if (editManagerId !== (editingUser.raw?.manager_id || '')) {
+        const oldManagerId = editingUser.raw?.manager_id || ''
+        if (editManagerId !== oldManagerId) {
           const { error: mgrError } = await supabase.rpc('assign_manager', {
             target_user_id: editingUser.id,
             new_manager_id: editManagerId || null
@@ -469,6 +486,14 @@ export function UsersPage() {
             setSavingEdit(false)
             return
           }
+          const newMgr = allAccounts.find(u => u.id === editManagerId)
+          const oldMgr = allAccounts.find(u => u.id === oldManagerId)
+          await logAudit(
+            editManagerId ? 'manager_assigned' : 'manager_unassigned',
+            'user',
+            editingUser.id,
+            `${editingUser.business_name || editingUser.email} | ${editManagerId ? `New manager: ${newMgr?.business_name || newMgr?.email || editManagerId}` : `Removed manager (was: ${oldMgr?.business_name || oldMgr?.email || oldManagerId})`}`
+          )
         }
         toast.success('User updated!')
         setShowEditModal(false)
@@ -496,6 +521,7 @@ export function UsersPage() {
       } else {
         await supabase.from('applications').delete().eq('id', user.id)
       }
+      await logAudit('user_deleted', 'user', user.id, `Deleted: ${user.business_name || user.email} | Role: ${user.role || user.account_type || 'unknown'}`)
       toast.success('Deleted')
       await fetchAll()
     } catch (err: any) {
@@ -524,6 +550,8 @@ export function UsersPage() {
         next.set(managerId, [...existing, state].sort())
         return next
       })
+      const mgr = allAccounts.find(u => u.id === managerId)
+      await logAudit('territory_state_added', 'user', managerId, `Manager: ${mgr?.business_name || mgr?.email || managerId} | State: ${state}`)
       toast.success(`${state} added to territory`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to add state')
@@ -550,6 +578,8 @@ export function UsersPage() {
         }
         return next
       })
+      const mgr = allAccounts.find(u => u.id === managerId)
+      await logAudit('territory_state_removed', 'user', managerId, `Manager: ${mgr?.business_name || mgr?.email || managerId} | State: ${state}`)
       toast.success(`${state} removed from territory`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to remove state')
