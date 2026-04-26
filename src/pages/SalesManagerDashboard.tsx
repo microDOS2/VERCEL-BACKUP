@@ -81,6 +81,7 @@ export function SalesManagerDashboard() {
   const [pendingTransfers, setPendingTransfers] = useState<any[]>([]);
   const [resolvingTransfer, setResolvingTransfer] = useState<string | null>(null);
   const [expandedAccounts, setExpandedAccounts] = useState<Record<string, boolean>>({});
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   // Auth guard + data fetch
   useEffect(() => {
@@ -215,6 +216,60 @@ export function SalesManagerDashboard() {
         setPendingTransfers([]);
       }
 
+      // Fetch recent activity from audit_log
+      try {
+        const accountIds = accountsData?.map((a: any) => a.id) || [];
+        const repIds = repsData?.map((r: any) => r.id) || [];
+        const allIds = [...accountIds, ...repIds, session.user.id];
+
+        const { data: auditData } = await supabase
+          .from('audit_log')
+          .select('id, action, table_name, record_id, created_at')
+          .in('record_id', allIds.map((id: string) => id))
+          .or('action.in.(account_transferred,rep_transferred,transfer_created,transfer_accepted,transfer_rejected,account_rep_assigned,store_rep_assigned)')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        const activity = (auditData || []).map((a: any) => {
+          let description = '';
+          let type = 'info';
+          if (a.action === 'account_transferred') {
+            description = 'Account transferred between managers';
+            type = 'assignment';
+          } else if (a.action === 'rep_transferred') {
+            description = 'Sales rep reassigned to new manager';
+            type = 'assignment';
+          } else if (a.action === 'transfer_created') {
+            description = 'Transfer request created';
+            type = 'transfer';
+          } else if (a.action === 'transfer_accepted') {
+            description = 'Transfer accepted';
+            type = 'transfer';
+          } else if (a.action === 'transfer_rejected') {
+            description = 'Transfer rejected';
+            type = 'transfer';
+          } else if (a.action === 'account_rep_assigned') {
+            description = 'Account rep assigned';
+            type = 'assignment';
+          } else if (a.action === 'store_rep_assigned') {
+            description = 'Store rep assigned';
+            type = 'assignment';
+          } else {
+            description = `${a.action} on ${a.table_name}`;
+          }
+          return {
+            id: a.id,
+            type,
+            description,
+            time: new Date(a.created_at).toLocaleDateString() + ' at ' + new Date(a.created_at).toLocaleTimeString(),
+            created_at: a.created_at,
+          };
+        });
+        setRecentActivity(activity);
+      } catch {
+        setRecentActivity([]);
+      }
+
       setLoading(false);
     };
 
@@ -311,14 +366,7 @@ export function SalesManagerDashboard() {
     .sort((a, b) => b.assignedRepCount - a.assignedRepCount)
     .slice(0, 4);
 
-  // Recent activity (mock for now - could be fetched from orders/activity table)
-  const recentActivity = [
-    { id: 1, type: 'order' as const, description: 'New order placed by West Coast Distribution', amount: '$2,500', time: '2 hours ago' },
-    { id: 2, type: 'new_account' as const, description: `New ${accounts[0]?.role || 'wholesaler'} approved: ${accounts[0]?.business_name || 'Mystic Moments'}`, rep: salesReps[0]?.business_name || 'Sales Rep', time: '4 hours ago' },
-    { id: 3, type: 'order' as const, description: 'Order from Psychedelic Wellness Center', amount: '$1,850', time: '6 hours ago' },
-    { id: 4, type: 'assignment' as const, description: `${salesReps[0]?.business_name || 'Rep'} assigned to ${accounts[0]?.business_name || 'account'}`, time: '1 day ago' },
-    { id: 5, type: 'order' as const, description: 'Pacific Northwest Supply placed an order', amount: '$4,200', time: '1 day ago' },
-  ];
+  // recentActivity now fetched from audit_log in init() — no mock data
 
   if (loading) {
     return (
