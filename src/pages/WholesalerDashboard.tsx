@@ -93,6 +93,15 @@ interface OrderRow {
   total: number;
   status: OrderStatus;
   created_at: string;
+  order_items?: {
+    id: string;
+    product_name: string;
+    variant_name: string;
+    sku: string;
+    quantity: number;
+    unit_price: number;
+    line_total: number;
+  }[];
 }
 
 interface InvoiceRow {
@@ -144,7 +153,7 @@ export function WholesalerDashboard() {
       const [{ data: o, error: oErr }, { data: i, error: iErr }, { data: a, error: aErr }] = await Promise.all([
         supabase
           .from('orders')
-          .select('id, po_number, items, total, status, created_at')
+          .select('id, po_number, items, total, status, created_at, order_items(id, product_name, variant_name, sku, quantity, unit_price, line_total)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         supabase
@@ -173,6 +182,7 @@ export function WholesalerDashboard() {
   }, [user]);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'agreements' | 'store-locations' | 'settings'>('overview');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [orderSearch, setOrderSearch] = useState('');
   const [orderFilter, setOrderFilter] = useState('all');
 
@@ -193,7 +203,14 @@ export function WholesalerDashboard() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
 
-  // Populate settings form when user loads
+  const toggleOrderExpand = (orderId: string) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
   useEffect(() => {
     if (user) {
       setSettingsForm({
@@ -687,29 +704,62 @@ export function WholesalerDashboard() {
               ) : (
                 filteredOrders.map((order) => {
                   const StatusIcon = getStatusIcon(order.status);
+                  const isExpanded = expandedOrders.has(order.id);
                   return (
-                    <TableRow key={order.id} className="border-brand-700">
-                      <TableCell className="font-medium text-white">{order.po_number}</TableCell>
-                      <TableCell className="text-gray-300">{order.created_at?.slice(0, 10) || '—'}</TableCell>
-                      <TableCell className="text-gray-300">{order.items}</TableCell>
-                      <TableCell className="text-gray-300">${order.total.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getStatusBadge(order.status)}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow key={order.id} className="border-brand-700">
+                        <TableCell className="font-medium text-white">{order.po_number}</TableCell>
+                        <TableCell className="text-gray-300">{order.created_at?.slice(0, 10) || '—'}</TableCell>
+                        <TableCell className="text-gray-300">{order.items}</TableCell>
+                        <TableCell className="text-gray-300">${order.total.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getStatusBadge(order.status)}>
+                            <StatusIcon className="w-3 h-3 mr-1" />
+                            {order.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-400 hover:text-white"
+                              onClick={() => toggleOrderExpand(order.id)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && order.order_items && order.order_items.length > 0 && (
+                        <TableRow key={`${order.id}-details`} className="border-brand-700 bg-brand-900/30">
+                          <TableCell colSpan={6} className="py-3">
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-gray-400 mb-2">Order Details:</p>
+                              <div className="grid grid-cols-5 gap-2 text-xs text-gray-400 mb-1">
+                                <span>Product</span>
+                                <span>Package</span>
+                                <span>SKU</span>
+                                <span className="text-center">Qty</span>
+                                <span className="text-right">Line Total</span>
+                              </div>
+                              {order.order_items.map((item) => (
+                                <div key={item.id} className="grid grid-cols-5 gap-2 text-sm">
+                                  <span className="text-white">{item.product_name}</span>
+                                  <span className="text-gray-300">{item.variant_name}</span>
+                                  <span className="text-gray-400 font-mono">{item.sku}</span>
+                                  <span className="text-center text-gray-300">{item.quantity}</span>
+                                  <span className="text-right text-white">${item.line_total.toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   );
                 })
               )}
