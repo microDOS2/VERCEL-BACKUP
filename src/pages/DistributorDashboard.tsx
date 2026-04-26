@@ -110,7 +110,7 @@ export function DistributorDashboard() {
               className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white"
             >
               <ShoppingCart className="w-4 h-4 mr-2" />
-              New Order
+              View Orders
             </Button>
           </div>
 

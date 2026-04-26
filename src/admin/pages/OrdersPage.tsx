@@ -36,7 +36,7 @@ export function OrdersPage() {
   const fetchReferences = async () => {
     const [{ data: u }, { data: p }] = await Promise.all([
       supabase.from('profiles').select('id, full_name, email'),
-      supabase.from('products').select('id, name, sku, price').eq('status', 'active')
+      supabase.from('products').select('id, name, sku, price').eq('is_active', true)
     ])
     setUsers(u || [])
     setProductsList(p || [])

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ProductAccordion } from '@/components/products/ProductAccordion';
 import { ProductTable } from '@/components/products/ProductTable';
 import { StarterKitCard } from '@/components/products/StarterKitCard';
@@ -6,7 +7,7 @@ import { ViewToggle } from '@/components/products/ViewToggle';
 import { CartDrawer } from '@/components/cart/CartDrawer';
 import { CartButton } from '@/components/cart/CartButton';
 import { Input } from '@/components/ui/input';
-import { Search, Package, Loader2 } from 'lucide-react';
+import { Search, Package, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import type { UserRole, Product, WholesalerStarterKit } from '@/types/products';
@@ -106,6 +107,7 @@ function transformToFrontend(
 
 
 export function Products() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [view, setView] = useState<'grid' | 'table'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -242,10 +244,31 @@ export function Products() {
     );
   }
 
+  const dashboardRoute = user?.role === 'distributor'
+    ? '/distributor-dashboard'
+    : user?.role === 'wholesaler'
+    ? '/wholesaler-dashboard'
+    : user?.role === 'sales_manager'
+    ? '/sales-manager-dashboard'
+    : user?.role === 'sales_rep'
+    ? '/sales-rep-dashboard'
+    : '/';
+
   return (
     <div className="min-h-screen bg-[#0a0514] py-8 px-4 sm:px-6 lg:px-8">
       <CartDrawer />
       <div className="max-w-7xl mx-auto">
+        {/* Back to Dashboard */}
+        {user?.role && (
+          <button
+            onClick={() => navigate(dashboardRoute)}
+            className="flex items-center gap-2 text-sm text-[#9a02d0] hover:text-[#ff66c4] transition-colors mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+        )}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
