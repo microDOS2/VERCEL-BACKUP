@@ -1,105 +1,255 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
-import { SalesManagerSidebar } from '@/components/sales-manager/SalesManagerSidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SalesManagerSidebar } from '@/components/sales-manager/SalesManagerSidebar';
 import { UserInfoBar } from '@/components/UserInfoBar';
+import { toast } from 'sonner';
+import {
+  DollarSign,
+  ShoppingCart,
+  Target,
+  Award,
+  Users,
+  Loader2,
+} from 'lucide-react';
+
+interface RepPerformance {
+  id: string;
+  name: string;
+  accounts: number;
+  orders: number;
+  revenue: number;
+  target: number;
+}
 
 export function SalesManagerPerformance() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [avgOrderValue, setAvgOrderValue] = useState(0);
+  const [teamData, setTeamData] = useState<RepPerformance[]>([]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error('Please log in');
+      navigate('/sales-manager-portal');
+      return;
+    }
+
+    // Verify role
+    const { data: me } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    if (me?.role !== 'sales_manager') {
+      toast.error('Access denied');
+      navigate('/');
+      return;
+    }
+
+    // 1. Get all accounts managed by this manager
+    const { data: accountsData } = await supabase
+      .from('users')
+      .select('id')
+      .eq('manager_id', session.user.id)
+      .in('role', ['wholesaler', 'distributor']);
+
+    const accountIds = (accountsData || []).map((a: any) => a.id);
+
+    // 2. Get all orders from these accounts
+    let ordersData: any[] = [];
+    if (accountIds.length > 0) {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, total_amount, user_id, created_at')
+        .in('user_id', accountIds)
+        .order('created_at', { ascending: false });
+      ordersData = data || [];
+    }
+
+    // 3. Calculate totals
+    const revenue = ordersData.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const orderCount = ordersData.length;
+    const avg = orderCount > 0 ? Math.round(revenue / orderCount) : 0;
+
+    setTotalRevenue(revenue);
+    setTotalOrders(orderCount);
+    setAvgOrderValue(avg);
+
+    // 4. Get team reps
+    const { data: repsData } = await supabase
+      .from('users')
+      .select('id, business_name, email')
+      .eq('role', 'sales_rep')
+      .eq('manager_id', session.user.id);
+
+    // 5. Get account assignments per rep
+    const repIds = (repsData || []).map((r: any) => r.id);
+    let assignments: any[] = [];
+    if (repIds.length > 0) {
+      const { data } = await supabase
+        .from('rep_account_assignments')
+        .select('rep_id, account_id')
+        .in('rep_id', repIds);
+      assignments = data || [];
+    }
+
+    // 6. Calculate per-rep performance
+    const repPerf: RepPerformance[] = (repsData || []).map((rep: any) => {
+      const repAssignments = assignments.filter((a: any) => a.rep_id === rep.id);
+      const repAccountIds = repAssignments.map((a: any) => a.account_id);
+      const repOrders = ordersData.filter((o: any) => repAccountIds.includes(o.user_id));
+      const repRevenue = repOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+      return {
+        id: rep.id,
+        name: rep.business_name || rep.email,
+        accounts: repAssignments.length,
+        orders: repOrders.length,
+        revenue: repRevenue,
+        target: 10000, // placeholder — future admin setting
+      };
+    });
+
+    setTeamData(repPerf);
+    setLoading(false);
+  }, [navigate]);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Please log in first');
-        navigate('/sales-manager-portal');
-        return;
-      }
-      const { data: userData } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      if (userData?.role !== 'sales_manager') {
-        toast.error('Access denied');
-        navigate('/sales-manager-portal');
-      }
-    };
-    checkAuth();
-  }, [navigate]);
+    fetchData();
+  }, [fetchData]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0514] flex">
+        <SalesManagerSidebar />
+        <main className="flex-1 p-6 lg:p-8 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#9a02d0]" />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0514] flex">
       <SalesManagerSidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-auto">
         <UserInfoBar />
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-8">
-            <Link to="/sales-manager-dashboard">
-              <Button variant="outline" size="sm" className="border-white/10 text-gray-400">
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Back
-              </Button>
-            </Link>
-            <h1 className="text-3xl font-bold text-white">Performance</h1>
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">Performance Overview</h1>
+            <p className="text-gray-400 text-sm">Real-time metrics for your territory</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="bg-[#150f24] border-white/10">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[#44f80c]/20 rounded-lg flex items-center justify-center">
-                    <DollarSign className="w-6 h-6 text-[#44f80c]" />
-                  </div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm">Total Revenue</p>
-                    <p className="text-2xl font-bold text-white">$156,420</p>
-                    <p className="text-[#44f80c] text-sm">+18% vs last month</p>
+                    <p className="text-gray-400 text-xs mb-1">Total Revenue</p>
+                    <p className="text-2xl font-bold text-white">${totalRevenue.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-[#44f80c]/20 rounded-lg">
+                    <DollarSign className="w-5 h-5 text-[#44f80c]" />
                   </div>
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-[#150f24] border-white/10">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[#9a02d0]/20 rounded-lg flex items-center justify-center">
-                    <ShoppingCart className="w-6 h-6 text-[#9a02d0]" />
-                  </div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm">Total Orders</p>
-                    <p className="text-2xl font-bold text-white">342</p>
-                    <p className="text-[#44f80c] text-sm">+12% vs last month</p>
+                    <p className="text-gray-400 text-xs mb-1">Total Orders</p>
+                    <p className="text-2xl font-bold text-white">{totalOrders.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-[#9a02d0]/20 rounded-lg">
+                    <ShoppingCart className="w-5 h-5 text-[#9a02d0]" />
                   </div>
                 </div>
               </CardContent>
             </Card>
             <Card className="bg-[#150f24] border-white/10">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[#ff66c4]/20 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-[#ff66c4]" />
-                  </div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm">Avg Order Value</p>
-                    <p className="text-2xl font-bold text-white">$457</p>
-                    <p className="text-[#44f80c] text-sm">+5% vs last month</p>
+                    <p className="text-gray-400 text-xs mb-1">Avg. Order Value</p>
+                    <p className="text-2xl font-bold text-white">${avgOrderValue.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-[#ff66c4]/20 rounded-lg">
+                    <Target className="w-5 h-5 text-[#ff66c4]" />
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
+          {/* Team Performance Table */}
           <Card className="bg-[#150f24] border-white/10">
             <CardHeader>
-              <CardTitle className="text-white">Team Performance</CardTitle>
+              <CardTitle className="text-white text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#9a02d0]" />
+                Team Performance
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-400">Performance charts coming soon...</p>
+              {teamData.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-10 h-10 mx-auto mb-2 text-gray-600" />
+                  <p className="text-gray-400">No sales reps on your team yet</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Sales Rep</th>
+                        <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Accounts</th>
+                        <th className="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Orders</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Revenue</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Target</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Progress</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {teamData.map((rep) => (
+                        <tr key={rep.id} className="hover:bg-white/5">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9a02d0] to-[#44f80c] flex items-center justify-center">
+                                <Award className="w-4 h-4 text-white" />
+                              </div>
+                              <span className="text-white text-sm">{rep.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-400">{rep.accounts}</td>
+                          <td className="px-4 py-3 text-center text-gray-400">{rep.orders}</td>
+                          <td className="px-4 py-3 text-right text-white font-medium">${rep.revenue.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-gray-400">${rep.target.toLocaleString()}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-[#9a02d0] to-[#44f80c] rounded-full"
+                                  style={{ width: `${Math.min((rep.revenue / rep.target) * 100, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-400 w-10 text-right">
+                                {rep.target > 0 ? Math.round((rep.revenue / rep.target) * 100) : 0}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
