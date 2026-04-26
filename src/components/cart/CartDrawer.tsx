@@ -1,11 +1,49 @@
 import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Minus, Plus, Trash2, ShoppingCart } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, CheckCircle } from 'lucide-react';
 import { formatPrice } from '@/data/products';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 export function CartDrawer() {
-  const { items, removeItem, updateQuantity, clearCart, totalPrice, isOpen, setIsOpen } = useCart();
+  const { items, removeItem, updateQuantity, clearCart, placeOrder, totalPrice, isOpen, setIsOpen } = useCart();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleCheckout = async () => {
+    if (!user) {
+      toast.error('Please log in to place an order');
+      return;
+    }
+    setIsCheckingOut(true);
+    try {
+      const result = await placeOrder();
+      toast.success(
+        <div className="space-y-1">
+          <p className="font-bold">Order placed successfully!</p>
+          <p className="text-sm">{result.poNumber} — Total: {formatPrice(result.total)}</p>
+          <p className="text-xs text-gray-400">An invoice has been generated and is available in your dashboard.</p>
+        </div>,
+        { duration: 6000 }
+      );
+      // Redirect to dashboard orders tab after short delay
+      setTimeout(() => {
+        const role = user.role;
+        if (role === 'wholesaler') navigate('/wholesaler-dashboard');
+        else if (role === 'distributor') navigate('/distributor-dashboard');
+        else navigate('/products');
+      }, 1500);
+    } catch (err: any) {
+      console.error('[CartDrawer] checkout error:', err);
+      toast.error(err.message || 'Failed to place order. Please try again.');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -89,8 +127,16 @@ export function CartDrawer() {
               >
                 Clear
               </Button>
-              <Button className="flex-1 bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white hover:opacity-90">
-                Checkout
+              <Button 
+                className="flex-1 bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white hover:opacity-90"
+                onClick={handleCheckout}
+                disabled={isCheckingOut}
+              >
+                {isCheckingOut ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
+                ) : (
+                  'Checkout'
+                )}
               </Button>
             </div>
           </div>
