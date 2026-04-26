@@ -1,7 +1,7 @@
 import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, CheckCircle } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingCart, Loader2 } from 'lucide-react';
 import { formatPrice } from '@/data/products';
 import { useState } from 'react';
 import { toast } from 'sonner';
