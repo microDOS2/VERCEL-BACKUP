@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import {
   Select,
   SelectContent,
@@ -1134,18 +1135,18 @@ export function WholesalerDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-gray-400">Current Password</Label>
-                <Input type="password" value={passwordForm.current} onChange={e => setPasswordForm({...passwordForm, current: e.target.value})}
-                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="••••••••" />
+                <PasswordInput value={passwordForm.current} onChange={e => setPasswordForm({...passwordForm, current: e.target.value})}
+                  className="bg-brand-900 border-brand-700 mt-1" placeholder="••••••••" />
               </div>
               <div>
                 <Label className="text-gray-400">New Password</Label>
-                <Input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}
-                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="••••••••" />
+                <PasswordInput value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}
+                  className="bg-brand-900 border-brand-700 mt-1" placeholder="••••••••" />
               </div>
               <div>
                 <Label className="text-gray-400">Confirm</Label>
-                <Input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})}
-                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="••••••••" />
+                <PasswordInput value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})}
+                  className="bg-brand-900 border-brand-700 mt-1" placeholder="••••••••" />
               </div>
             </div>
             {passwordMessage && (
