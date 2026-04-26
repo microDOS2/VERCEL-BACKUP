@@ -7,10 +7,6 @@ import { ContactPage } from './pages/ContactPage';
 import { WholesalerDashboard } from './pages/WholesalerDashboard';
 import { DistributorPortal } from './pages/DistributorPortal';
 import { DistributorDashboard } from './pages/DistributorDashboard';
-import { DistributorOrders } from './pages/DistributorOrders';
-import { DistributorInvoices } from './pages/DistributorInvoices';
-import { DistributorAgreements } from './pages/DistributorAgreements';
-import { DistributorSettings } from './pages/DistributorSettings';
 import { SalesManagerPortal } from './pages/SalesManagerPortal';
 import { SalesManagerDashboard } from './pages/SalesManagerDashboard';
 import { SalesManagerTeam } from './pages/SalesManagerTeam';
@@ -62,10 +58,6 @@ function AppContent() {
     '/wholesaler-dashboard',
     '/distributor-portal',
     '/distributor-dashboard',
-    '/distributor-orders',
-    '/distributor-invoices',
-    '/distributor-agreements',
-    '/distributor-settings',
     '/sales-manager-portal',
     '/sales-manager-dashboard',
     '/sales-manager-team',
@@ -109,10 +101,10 @@ function AppContent() {
           <Route path="/wholesaler-dashboard" element={<WholesalerDashboard />} />
           <Route path="/distributor-portal" element={<DistributorPortal />} />
           <Route path="/distributor-dashboard" element={<DistributorDashboard />} />
-          <Route path="/distributor-orders" element={<DistributorOrders />} />
-          <Route path="/distributor-invoices" element={<DistributorInvoices />} />
-          <Route path="/distributor-agreements" element={<DistributorAgreements />} />
-          <Route path="/distributor-settings" element={<DistributorSettings />} />
+          <Route path="/distributor-orders" element={<Navigate to="/distributor-dashboard" replace />} />
+          <Route path="/distributor-invoices" element={<Navigate to="/distributor-dashboard" replace />} />
+          <Route path="/distributor-agreements" element={<Navigate to="/distributor-dashboard" replace />} />
+          <Route path="/distributor-settings" element={<Navigate to="/distributor-dashboard" replace />} />
           <Route path="/sales-manager-portal" element={<SalesManagerPortal />} />
           <Route path="/sales-manager-dashboard" element={<SalesManagerDashboard />} />
           <Route path="/sales-manager-team" element={<SalesManagerTeam />} />
