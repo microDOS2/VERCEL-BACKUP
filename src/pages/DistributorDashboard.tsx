@@ -8,7 +8,6 @@ import {
   LogOut,
   ChevronRight,
   Search,
-  Filter,
   Download,
   Eye,
   CheckCircle,
