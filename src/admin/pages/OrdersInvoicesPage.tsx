@@ -27,7 +27,7 @@ interface FulfillmentOrder {
   payment_reference: string | null
   forwarded_to_fulfillment_at: string | null
   fulfilled_at: string | null
-  profiles?: { business_name: string; email: string; phone: string }
+  users?: { business_name: string; email: string; phone: string }
   invoices?: { id: string; invoice_number: string; amount: number; status: string; due_date: string }[]
 }
 
@@ -43,7 +43,7 @@ interface FulfillmentInvoice {
   paid_date: string | null
   paid_method: string | null
   paid_reference: string | null
-  profiles?: { business_name: string; email: string; phone: string }
+  users?: { business_name: string; email: string; phone: string }
   orders?: { po_number: string; shipping_address: string; contact_person: string; contact_phone: string }
 }
 
@@ -118,7 +118,7 @@ export function OrdersInvoicesPage() {
       supabase.from('orders')
         .select(`
           *,
-          profiles:user_id (business_name, email, phone),
+          users!user_id (business_name, email, phone),
           invoices(id, invoice_number, amount, status, due_date)
         `)
         .order('created_at', { ascending: false })
@@ -126,7 +126,7 @@ export function OrdersInvoicesPage() {
       supabase.from('invoices')
         .select(`
           *,
-          profiles:user_id (business_name, email, phone),
+          users!user_id (business_name, email, phone),
           orders:order_id (po_number, shipping_address, contact_person, contact_phone)
         `)
         .order('created_at', { ascending: false })
@@ -227,8 +227,8 @@ export function OrdersInvoicesPage() {
     const s = search.toLowerCase()
     return (
       o.po_number?.toLowerCase().includes(s) ||
-      o.profiles?.business_name?.toLowerCase().includes(s) ||
-      o.profiles?.email?.toLowerCase().includes(s)
+      o.users?.business_name?.toLowerCase().includes(s) ||
+      o.users?.email?.toLowerCase().includes(s)
     )
   })
 
@@ -236,7 +236,7 @@ export function OrdersInvoicesPage() {
     const s = search.toLowerCase()
     return (
       i.invoice_number?.toLowerCase().includes(s) ||
-      i.profiles?.business_name?.toLowerCase().includes(s) ||
+      i.users?.business_name?.toLowerCase().includes(s) ||
       i.orders?.po_number?.toLowerCase().includes(s)
     )
   })
@@ -600,14 +600,14 @@ function OrderCard({
           <Building2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-gray-400">Business</p>
-            <p className="text-white font-medium">{order.profiles?.business_name || 'Unknown'}</p>
+            <p className="text-white font-medium">{order.users?.business_name || 'Unknown'}</p>
           </div>
         </div>
         <div className="flex items-start gap-2">
           <Mail className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-gray-400">Email</p>
-            <p className="text-white">{order.profiles?.email || 'N/A'}</p>
+            <p className="text-white">{order.users?.email || 'N/A'}</p>
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -621,7 +621,7 @@ function OrderCard({
           <Phone className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-gray-400">Phone</p>
-            <p className="text-white">{order.contact_phone || order.profiles?.phone || 'N/A'}</p>
+            <p className="text-white">{order.contact_phone || order.users?.phone || 'N/A'}</p>
           </div>
         </div>
       </div>
@@ -750,14 +750,14 @@ function InvoiceCard({
           <Building2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-gray-400">Business</p>
-            <p className="text-white font-medium">{invoice.profiles?.business_name || 'Unknown'}</p>
+            <p className="text-white font-medium">{invoice.users?.business_name || 'Unknown'}</p>
           </div>
         </div>
         <div className="flex items-start gap-2">
           <Mail className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-gray-400">Email</p>
-            <p className="text-white">{invoice.profiles?.email || 'N/A'}</p>
+            <p className="text-white">{invoice.users?.email || 'N/A'}</p>
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -771,7 +771,7 @@ function InvoiceCard({
           <Phone className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-gray-400">Phone</p>
-            <p className="text-white">{invoice.orders?.contact_phone || invoice.profiles?.phone || 'N/A'}</p>
+            <p className="text-white">{invoice.orders?.contact_phone || invoice.users?.phone || 'N/A'}</p>
           </div>
         </div>
       </div>
