@@ -53,11 +53,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { CartDrawer } from '@/components/cart/CartDrawer';
-import { CartButton } from '@/components/cart/CartButton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import { UserInfoBar } from '@/components/UserInfoBar';
 
 interface Order {
@@ -77,15 +76,6 @@ interface Invoice {
   dueDate: string;
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
-}
-
-interface Product {
-  id: string;
-  name: string;
-  sku: string;
-  price: number;
-  stock: number;
-  minOrder: number;
 }
 
 interface Agreement {
@@ -131,12 +121,6 @@ const mockInvoices: Invoice[] = [
   { id: '4', invoiceNumber: 'INV-2026-004', poNumber: 'PO-2026-005', date: '2026-03-28', dueDate: '2026-04-28', amount: 9800, status: 'overdue' },
 ];
 
-const mockProducts: Product[] = [
-  { id: '1', name: 'microDOS(2) 2mg Tablets', sku: 'MD2-2MG-100', price: 49, stock: 5000, minOrder: 25 },
-  { id: '2', name: 'microDOS(2) Starter Pack', sku: 'MD2-STARTER-10', price: 65, stock: 1200, minOrder: 10 },
-  { id: '3', name: 'microDOS(2) Display Box', sku: 'MD2-DISP-50', price: 2200, stock: 300, minOrder: 1 },
-];
-
 const mockAgreements: Agreement[] = [
   {
     id: '1',
@@ -179,7 +163,8 @@ const mockAgreements: Agreement[] = [
 ];
 
 export function WholesalerDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'products' | 'agreements' | 'store-locations'>('overview');
+  const { user, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'agreements' | 'store-locations'>('overview');
   const [orderSearch, setOrderSearch] = useState('');
   const [orderFilter, setOrderFilter] = useState('all');
   const [stores, setStores] = useState<StoreLocation[]>([]);
@@ -708,44 +693,6 @@ export function WholesalerDashboard() {
     </div>
   );
 
-  const renderProducts = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Product Catalog</h2>
-        <Button className="btn-primary-gradient">
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          New Order
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {mockProducts.map((product) => (
-          <Card key={product.id} className="bg-brand-800 border-brand-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg">{product.name}</CardTitle>
-              <p className="text-sm text-gray-400">SKU: {product.sku}</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Wholesale Price</span>
-                <span className="text-2xl font-bold text-psy-neonGreen">${product.price}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Min. Order</span>
-                <span className="text-white">{product.minOrder} units</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Stock Available</span>
-                <span className="text-white">{product.stock.toLocaleString()} units</span>
-              </div>
-              <Button className="w-full btn-primary-gradient">Add to Order</Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-
   const renderStoreLocations = () => (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1015,11 +962,13 @@ export function WholesalerDashboard() {
           <div className="p-6">
             <div className="flex items-center gap-3 mb-8">
               <div className="w-10 h-10 rounded-full bg-psy-neonPurple/20 flex items-center justify-center">
-                <span className="text-psy-neonPurple font-bold">WD</span>
+                <span className="text-psy-neonPurple font-bold">
+                  {(user?.business_name || user?.email || 'W').slice(0, 2).toUpperCase()}
+                </span>
               </div>
               <div>
-                <p className="text-white font-medium">Wholesale Demo</p>
-                <p className="text-xs text-gray-400">wholesaler@example.com</p>
+                <p className="text-white font-medium">{user?.business_name || 'Wholesaler'}</p>
+                <p className="text-xs text-gray-400">{user?.email || ''}</p>
               </div>
             </div>
 
@@ -1099,13 +1048,13 @@ export function WholesalerDashboard() {
             </nav>
 
             <div className="mt-8 pt-8 border-t border-brand-700">
-              <Link
-                to="/"
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-brand-700 transition-colors"
+              <button
+                onClick={async () => { await signOut(); window.location.href = '/'; }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-brand-700 transition-colors text-left"
               >
                 <LogOut className="w-5 h-5" />
                 Logout
-              </Link>
+              </button>
             </div>
           </div>
         </aside>
@@ -1180,32 +1129,26 @@ export function WholesalerDashboard() {
 
         {/* Main Content */}
         <div className="flex-1 lg:ml-64 p-6 lg:p-8 pb-24 lg:pb-8">
-          <CartDrawer />
           <div className="max-w-6xl mx-auto">
-            {/* Header with Cart */}
+            {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-2xl font-bold text-white">
                 {activeTab === 'overview' && 'Dashboard'}
                 {activeTab === 'orders' && 'Orders'}
                 {activeTab === 'invoices' && 'Invoices'}
-                {activeTab === 'products' && 'Products'}
                 {activeTab === 'agreements' && 'Agreements'}
                 {activeTab === 'store-locations' && 'Store Locations'}
               </h1>
-              <div className="flex items-center gap-3">
-                <Link to="/products">
-                  <Button variant="outline" className="border-white/10 text-gray-300 hover:bg-white/5">
-                    <Package className="w-4 h-4 mr-2" />
-                    Browse Products
-                  </Button>
-                </Link>
-                <CartButton />
-              </div>
+              <Link to="/products">
+                <Button variant="outline" className="border-white/10 text-gray-300 hover:bg-white/5">
+                  <Package className="w-4 h-4 mr-2" />
+                  Browse Products
+                </Button>
+              </Link>
             </div>
             {activeTab === 'overview' && renderOverview()}
             {activeTab === 'orders' && renderOrders()}
             {activeTab === 'invoices' && renderInvoices()}
-            {activeTab === 'products' && renderProducts()}
             {activeTab === 'agreements' && renderAgreements()}
             {activeTab === 'store-locations' && renderStoreLocations()}
           </div>

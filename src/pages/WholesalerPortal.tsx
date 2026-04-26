@@ -6,6 +6,8 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lock, Mail, ArrowRight, Loader2, Store } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 export function WholesalerPortal() {
   const [email, setEmail] = useState('');
@@ -15,12 +17,51 @@ export function WholesalerPortal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast.error('Please enter both email and password');
+      return;
+    }
     setLoading(true);
-    // Simulate login - any email/password works for demo
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // Real Supabase auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    if (authError || !authData.user) {
+      toast.error('Invalid email or password');
+      setLoading(false);
+      return;
+    }
+
+    // Verify role
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role, status')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (userError || !userData) {
+      await supabase.auth.signOut();
+      toast.error('Account not found');
+      setLoading(false);
+      return;
+    }
+
+    if (userData.role !== 'wholesaler') {
+      await supabase.auth.signOut();
+      toast.error('Access denied: wholesaler account required');
+      setLoading(false);
+      return;
+    }
+
+    if (userData.status !== 'approved') {
+      await supabase.auth.signOut();
+      toast.error('Account pending approval');
+      setLoading(false);
+      return;
+    }
+
+    toast.success('Welcome back!');
     setLoading(false);
-    // Redirect to dashboard
-    navigate('/dashboard');
+    navigate('/wholesaler-dashboard');
   };
 
   return (
