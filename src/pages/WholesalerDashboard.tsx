@@ -122,10 +122,15 @@ export function WholesalerDashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
 
-  // Auth guard: redirect to portal if not authenticated
+  // Auth guard: redirect to portal if not authenticated (with 3s grace period)
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/wholesaler-portal');
+    if (authLoading) return;
+    if (!user) {
+      const timer = setTimeout(() => {
+        // Double-check after 3s — only redirect if still no user
+        navigate('/wholesaler-portal');
+      }, 3000);
+      return () => clearTimeout(timer);
     }
   }, [authLoading, user, navigate]);
 
@@ -1061,7 +1066,13 @@ export function WholesalerDashboard() {
   };
 
   const renderSettings = () => {
-    if (!user) return null;
+    if (!user) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-gray-500">Loading settings...</div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-8">
         <Card className="bg-brand-800 border-brand-700">
