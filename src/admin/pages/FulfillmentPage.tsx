@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import {
   Search, Download, CheckCircle, Truck, FileText, ShoppingCart,
-  ChevronRight, Clock, AlertCircle, Loader2, Building2,
-  Phone, Mail, MapPin, User, Plus
+  Loader2, Building2,
+  Phone, Mail, MapPin, User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
