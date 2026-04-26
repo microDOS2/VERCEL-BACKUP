@@ -72,6 +72,18 @@ interface InvoiceRow {
   status: InvoiceStatus;
   date: string;
   due_date: string;
+  orders?: {
+    po_number: string;
+    order_items?: {
+      id: string;
+      product_name: string;
+      variant_name: string;
+      sku: string;
+      quantity: number;
+      unit_price: number;
+      line_total: number;
+    }[];
+  };
 }
 
 interface AgreementRow {
@@ -105,12 +117,22 @@ export function DistributorDashboard() {
   // Tab state
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'agreements' | 'settings'>('overview');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
   const toggleOrderExpand = (orderId: string) => {
     setExpandedOrders(prev => {
       const next = new Set(prev);
       if (next.has(orderId)) next.delete(orderId);
       else next.add(orderId);
+      return next;
+    });
+  };
+
+  const toggleInvoiceExpand = (invoiceId: string) => {
+    setExpandedInvoices(prev => {
+      const next = new Set(prev);
+      if (next.has(invoiceId)) next.delete(invoiceId);
+      else next.add(invoiceId);
       return next;
     });
   };
@@ -145,7 +167,7 @@ export function DistributorDashboard() {
       setDataLoading(true);
       const [{ data: o, error: oErr }, { data: i, error: iErr }, { data: a, error: aErr }] = await Promise.all([
         supabase.from('orders').select('id, po_number, items, total, status, created_at, order_items(id, product_name, variant_name, sku, quantity, unit_price, line_total)').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('invoices').select('id, invoice_number, order_id, amount, status, date, due_date').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('invoices').select('id, invoice_number, order_id, amount, status, date, due_date, orders:order_id(po_number, order_items(id, product_name, variant_name, sku, quantity, unit_price, line_total))').eq('user_id', user.id).order('date', { ascending: false }),
         supabase.from('agreements').select('id, title, type, version, sent_date, signed_date, expires_date, status, signed_by, document_url').eq('user_id', user.id).order('sent_date', { ascending: false }),
       ]);
       if (oErr) console.error('[DistributorDashboard] orders error:', oErr);
@@ -543,28 +565,37 @@ export function DistributorDashboard() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                      {isExpanded && order.order_items && order.order_items.length > 0 && (
+                      {isExpanded && (
                         <TableRow key={`${order.id}-details`} className="border-brand-700 bg-brand-900/30">
                           <TableCell colSpan={6} className="py-3">
-                            <div className="space-y-2">
-                              <p className="text-xs font-medium text-gray-400 mb-2">Order Details:</p>
-                              <div className="grid grid-cols-5 gap-2 text-xs text-gray-400 mb-1">
-                                <span>Product</span>
-                                <span>Package</span>
-                                <span>SKU</span>
-                                <span className="text-center">Qty</span>
-                                <span className="text-right">Line Total</span>
-                              </div>
-                              {order.order_items.map((item) => (
-                                <div key={item.id} className="grid grid-cols-5 gap-2 text-sm">
-                                  <span className="text-white">{item.product_name}</span>
-                                  <span className="text-gray-300">{item.variant_name}</span>
-                                  <span className="text-gray-400 font-mono">{item.sku}</span>
-                                  <span className="text-center text-gray-300">{item.quantity}</span>
-                                  <span className="text-right text-white">${item.line_total.toLocaleString()}</span>
+                            {order.order_items && order.order_items.length > 0 ? (
+                              <div className="space-y-2">
+                                <p className="text-xs font-medium text-gray-400 mb-2">Order Details:</p>
+                                <div className="grid grid-cols-5 gap-2 text-xs text-gray-400 mb-1">
+                                  <span>Product</span>
+                                  <span>Package</span>
+                                  <span>SKU</span>
+                                  <span className="text-center">Qty</span>
+                                  <span className="text-right">Line Total</span>
                                 </div>
-                              ))}
-                            </div>
+                                {order.order_items.map((item) => (
+                                  <div key={item.id} className="grid grid-cols-5 gap-2 text-sm">
+                                    <span className="text-white">{item.product_name}</span>
+                                    <span className="text-gray-300">{item.variant_name}</span>
+                                    <span className="text-gray-400 font-mono">{item.sku}</span>
+                                    <span className="text-center text-gray-300">{item.quantity}</span>
+                                    <span className="text-right text-white">${item.line_total.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : order.notes ? (
+                              <div className="space-y-2">
+                                <p className="text-xs font-medium text-gray-400 mb-2">Order Details (from notes):</p>
+                                <p className="text-sm text-white">{order.notes}</p>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500">No detailed order information available.</p>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
@@ -611,23 +642,57 @@ export function DistributorDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.id} className="border-brand-700 hover:bg-brand-700/50">
-                    <TableCell className="text-white font-medium">{invoice.invoice_number}</TableCell>
-                    <TableCell className="text-gray-400">{invoice.order_id ? invoice.order_id.slice(0, 8) : 'N/A'}</TableCell>
-                    <TableCell className="text-white">${(invoice.amount || 0).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getInvoiceStatusBadge(invoice.status)}>{invoice.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-gray-400">{new Date(invoice.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-gray-400">{new Date(invoice.due_date).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {invoices.map((invoice) => {
+                  const isInvExpanded = expandedInvoices.has(invoice.id);
+                  return (
+                    <>
+                      <TableRow key={invoice.id} className="border-brand-700 hover:bg-brand-700/50">
+                        <TableCell className="text-white font-medium">{invoice.invoice_number}</TableCell>
+                        <TableCell className="text-gray-400">{invoice.orders?.po_number || (invoice.order_id ? invoice.order_id.slice(0, 8) : 'N/A')}</TableCell>
+                        <TableCell className="text-white">${(invoice.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getInvoiceStatusBadge(invoice.status)}>{invoice.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-gray-400">{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-gray-400">{new Date(invoice.due_date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white" onClick={() => toggleInvoiceExpand(invoice.id)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {isInvExpanded && (
+                        <TableRow key={`${invoice.id}-details`} className="border-brand-700 bg-brand-900/30">
+                          <TableCell colSpan={7} className="py-3">
+                            {invoice.orders?.order_items && invoice.orders.order_items.length > 0 ? (
+                              <div className="space-y-2">
+                                <p className="text-xs font-medium text-gray-400 mb-2">Invoice Details (from Order {invoice.orders.po_number}):</p>
+                                <div className="grid grid-cols-5 gap-2 text-xs text-gray-400 mb-1">
+                                  <span>Product</span>
+                                  <span>Package</span>
+                                  <span>SKU</span>
+                                  <span className="text-center">Qty</span>
+                                  <span className="text-right">Line Total</span>
+                                </div>
+                                {invoice.orders.order_items.map((item) => (
+                                  <div key={item.id} className="grid grid-cols-5 gap-2 text-sm">
+                                    <span className="text-white">{item.product_name}</span>
+                                    <span className="text-gray-300">{item.variant_name}</span>
+                                    <span className="text-gray-400 font-mono">{item.sku}</span>
+                                    <span className="text-center text-gray-300">{item.quantity}</span>
+                                    <span className="text-right text-white">${item.line_total.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500">No detailed invoice items available.</p>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
