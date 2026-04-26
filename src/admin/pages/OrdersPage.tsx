@@ -13,7 +13,7 @@ interface Order {
   status: string
   shipping_address: string | null
   created_at: string
-  profiles?: { full_name: string; email: string }
+  users?: { business_name: string; email: string }
   products?: { name: string; sku: string }
 }
 
@@ -43,11 +43,11 @@ export function OrdersPage() {
 
   const fetchReferences = async () => {
     const [{ data: u, error: uErr }, { data: products, error: pErr }, { data: variants, error: vErr }] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, email'),
+      supabase.from('users').select('id, business_name, email').eq('status', 'approved'),
       supabase.from('products').select('id, name, sku, price').eq('is_active', true),
       supabase.from('product_variants').select('id, product_id, name, sku, distributor_price, in_stock').order('sku')
     ])
-    if (uErr) console.error('[OrdersPage] profiles error:', uErr)
+    if (uErr) console.error('[OrdersPage] users error:', uErr)
     if (pErr) console.error('[OrdersPage] products error:', pErr)
     if (vErr) console.error('[OrdersPage] variants error:', vErr)
 
@@ -90,7 +90,7 @@ export function OrdersPage() {
     setLoading(true)
     let query = supabase
       .from('orders')
-      .select('*, profiles(full_name, email), products(name, sku)', { count: 'exact' })
+      .select('*, users(business_name, email), products(name, sku)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(page * pageSize, (page + 1) * pageSize - 1)
 
@@ -174,7 +174,7 @@ export function OrdersPage() {
 
   const exportCSV = () => {
     downloadCSV('orders', ['ID', 'Customer', 'Product', 'Quantity', 'Total', 'Status', 'Created'],
-      orders.map(o => [o.id, o.profiles?.full_name || o.user_id, o.products?.name || o.product_id, String(o.quantity), String(o.total_amount), o.status, o.created_at]))
+      orders.map(o => [o.id, o.users?.business_name || o.user_id, o.products?.name || o.product_id, String(o.quantity), String(o.total_amount), o.status, o.created_at]))
   }
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -226,7 +226,7 @@ export function OrdersPage() {
                     <div className="text-sm font-mono text-gray-300">#{o.id.slice(0, 8)}</div>
                     <div className="text-xs text-gray-500">{formatDate(o.created_at)}</div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-300">{o.profiles?.full_name || 'Unknown'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-300">{o.users?.business_name || 'Unknown'}</td>
                   <td className="px-4 py-3 text-sm text-gray-300">{o.products?.name || o.product_id}</td>
                   <td className="px-4 py-3 text-sm text-gray-400">{o.quantity}</td>
                   <td className="px-4 py-3 text-sm font-medium text-white">{formatCurrency(o.total_amount)}</td>
@@ -272,7 +272,7 @@ export function OrdersPage() {
                 <label className="block text-sm font-medium text-gray-400 mb-1.5">Customer</label>
                 <select value={formData.user_id} onChange={e => setFormData({...formData, user_id: e.target.value})} className="w-full px-3 py-2.5 bg-[#0a0514] border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#9a02d0]/50">
                   <option value="">Select customer...</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+                  {users.map(u => <option key={u.id} value={u.id}>{u.business_name || u.email}</option>)}
                 </select>
               </div>
               <div>
