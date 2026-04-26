@@ -43,7 +43,7 @@ export function OrdersPage() {
 
   const fetchReferences = async () => {
     const [{ data: u, error: uErr }, { data: products, error: pErr }, { data: variants, error: vErr }] = await Promise.all([
-      supabase.from('users').select('id, business_name, email').eq('status', 'approved'),
+      supabase.from('users').select('id, business_name, email').eq('status', 'approved').in('role', ['distributor', 'wholesaler']),
       supabase.from('products').select('id, name, sku, price').eq('is_active', true),
       supabase.from('product_variants').select('id, product_id, name, sku, distributor_price, in_stock').order('sku')
     ])
