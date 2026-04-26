@@ -9,6 +9,7 @@ interface UserInfo {
   email: string
   role: string
   states: string[]
+  manager_name: string | null
 }
 
 const roleConfig: Record<string, { label: string; color: string; icon: any }> = {
@@ -33,7 +34,7 @@ export function UserInfoBar() {
       }
       const { data } = await supabase
         .from('users')
-        .select('id, business_name, email, role')
+        .select('id, business_name, email, role, manager_id')
         .eq('id', session.user.id)
         .single()
       if (!data) {
@@ -41,6 +42,7 @@ export function UserInfoBar() {
         return
       }
       let states: string[] = []
+      let manager_name: string | null = null
       if (data.role === 'sales_manager') {
         const { data: stateData } = await supabase
           .from('manager_state_assignments')
@@ -48,7 +50,15 @@ export function UserInfoBar() {
           .eq('manager_id', data.id)
         states = (stateData || []).map((s: any) => s.state_code)
       }
-      setUser({ ...data, states } as UserInfo)
+      if (data.role === 'sales_rep' && data.manager_id) {
+        const { data: mgr } = await supabase
+          .from('users')
+          .select('business_name, email')
+          .eq('id', data.manager_id)
+          .single()
+        manager_name = mgr?.business_name || mgr?.email || 'Unknown'
+      }
+      setUser({ ...data, states, manager_name } as UserInfo)
       setLoading(false)
     }
     fetchUser()
@@ -76,7 +86,7 @@ export function UserInfoBar() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#9a02d0] to-[#44f80c] flex items-center justify-center flex-shrink-0">
-            <User className="w-4.5 h-4.5 text-white" />
+            <User className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -90,6 +100,11 @@ export function UserInfoBar() {
             </div>
             {user.email && user.business_name && (
               <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            )}
+            {user.role === 'sales_rep' && user.manager_name && (
+              <p className="text-xs text-gray-400 truncate">
+                Manager: <span className="text-[#44f80c]">{user.manager_name}</span>
+              </p>
             )}
           </div>
         </div>
