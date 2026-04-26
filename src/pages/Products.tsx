@@ -196,20 +196,20 @@ export function Products() {
           setError(err.message || 'Failed to load products. Please try again.');
         }
       } finally {
+        clearTimeout(timeoutId);
         if (!cancelled) {
           setLoading(false);
         }
       }
     }
 
-    // 10-second safety timeout so loading spinner doesn't hang forever
+    // 15-second safety timeout — only fires if fetchData truly hangs
     const timeoutId = setTimeout(() => {
       if (!cancelled) {
-        console.error('[Products] Fetch timed out after 10 seconds');
-        setError('Connection timed out. Please check your internet and try again.');
+        setError('Connection timed out after 15 seconds. The database may be unreachable.');
         setLoading(false);
       }
-    }, 10000);
+    }, 15000);
 
     fetchData();
 

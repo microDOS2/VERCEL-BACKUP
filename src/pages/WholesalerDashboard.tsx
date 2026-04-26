@@ -25,6 +25,10 @@ import {
   Mail,
   Pencil,
   Trash2,
+  Settings as SettingsIcon,
+  Lock,
+  Building2,
+  Save,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -162,7 +166,7 @@ export function WholesalerDashboard() {
     fetchData();
   }, [user]);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'agreements' | 'store-locations'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'agreements' | 'store-locations' | 'settings'>('overview');
   const [orderSearch, setOrderSearch] = useState('');
   const [orderFilter, setOrderFilter] = useState('all');
 
@@ -171,6 +175,33 @@ export function WholesalerDashboard() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [agreements, setAgreements] = useState<AgreementRow[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
+
+  // Settings state
+  const [settingsForm, setSettingsForm] = useState({
+    business_name: '', phone: '', address: '',
+    city: '', state: '', zip: '', website: '', license_number: '',
+  });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+
+  // Populate settings form when user loads
+  useEffect(() => {
+    if (user) {
+      setSettingsForm({
+        business_name: user.business_name || '',
+        phone: user.phone || '',
+        address: user.address || '',
+        city: user.city || '',
+        state: user.state || '',
+        zip: user.zip || '',
+        website: user.website || '',
+        license_number: user.license_number || '',
+      });
+    }
+  }, [user]);
 
   const [stores, setStores] = useState<StoreLocation[]>([]);
   const [storesLoading, setStoresLoading] = useState(false);
@@ -982,6 +1013,153 @@ export function WholesalerDashboard() {
     </div>
   );
 
+  // Save profile to Supabase
+  const handleSaveSettings = async () => {
+    if (!user) return;
+    setSettingsSaving(true);
+    setSettingsMessage(null);
+    const { error } = await supabase.from('users').update({
+      business_name: settingsForm.business_name,
+      phone: settingsForm.phone,
+      address: settingsForm.address,
+      city: settingsForm.city,
+      state: settingsForm.state,
+      zip: settingsForm.zip,
+      website: settingsForm.website,
+      license_number: settingsForm.license_number,
+    }).eq('id', user.id);
+    setSettingsSaving(false);
+    if (error) setSettingsMessage('Error: ' + error.message);
+    else setSettingsMessage('Profile updated successfully!');
+  };
+
+  // Change password
+  const handleChangePassword = async () => {
+    if (passwordForm.new !== passwordForm.confirm) {
+      setPasswordMessage('Passwords do not match.'); return;
+    }
+    if (passwordForm.new.length < 6) {
+      setPasswordMessage('Must be at least 6 characters.'); return;
+    }
+    setPasswordSaving(true);
+    setPasswordMessage(null);
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user?.email || '', password: passwordForm.current,
+    });
+    if (signInError) {
+      setPasswordSaving(false);
+      setPasswordMessage('Current password is incorrect.'); return;
+    }
+    const { error: updateError } = await supabase.auth.updateUser({ password: passwordForm.new });
+    setPasswordSaving(false);
+    if (updateError) setPasswordMessage('Error: ' + updateError.message);
+    else {
+      setPasswordMessage('Password updated!');
+      setPasswordForm({ current: '', new: '', confirm: '' });
+    }
+  };
+
+  const renderSettings = () => {
+    if (!user) return null;
+    return (
+      <div className="space-y-8">
+        <Card className="bg-brand-800 border-brand-700">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Building2 className="w-5 h-5 text-psy-neonPurple" />
+              <CardTitle className="text-white">Business Profile</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">Business Name</Label>
+                <Input value={settingsForm.business_name} onChange={e => setSettingsForm({...settingsForm, business_name: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="Your business name" />
+              </div>
+              <div>
+                <Label className="text-gray-400">Phone</Label>
+                <Label className="text-gray-400">Phone</Label>
+                <Input value={settingsForm.phone} onChange={e => setSettingsForm({...settingsForm, phone: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="(555) 000-0000" />
+              </div>
+              <div>
+                <Label className="text-gray-400">Website</Label>
+                <Input value={settingsForm.website} onChange={e => setSettingsForm({...settingsForm, website: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="https://yourbusiness.com" />
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-gray-400">Street Address</Label>
+                <Input value={settingsForm.address} onChange={e => setSettingsForm({...settingsForm, address: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="123 Main St" />
+              </div>
+              <div>
+                <Label className="text-gray-400">City</Label>
+                <Input value={settingsForm.city} onChange={e => setSettingsForm({...settingsForm, city: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="City" />
+              </div>
+              <div>
+                <Label className="text-gray-400">State</Label>
+                <Input value={settingsForm.state} onChange={e => setSettingsForm({...settingsForm, state: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="CA" />
+              </div>
+              <div>
+                <Label className="text-gray-400">ZIP Code</Label>
+                <Input value={settingsForm.zip} onChange={e => setSettingsForm({...settingsForm, zip: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="12345" />
+              </div>
+              <div>
+                <Label className="text-gray-400">License Number</Label>
+                <Input value={settingsForm.license_number} onChange={e => setSettingsForm({...settingsForm, license_number: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="License #" />
+              </div>
+            </div>
+            {settingsMessage && (
+              <p className={`text-sm ${settingsMessage.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{settingsMessage}</p>
+            )}
+            <Button onClick={handleSaveSettings} disabled={settingsSaving} className="btn-primary-gradient">
+              {settingsSaving ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Changes</>}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-brand-800 border-brand-700">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Lock className="w-5 h-5 text-psy-neonPurple" />
+              <CardTitle className="text-white">Change Password</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-gray-400">Current Password</Label>
+                <Input type="password" value={passwordForm.current} onChange={e => setPasswordForm({...passwordForm, current: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="••••••••" />
+              </div>
+              <div>
+                <Label className="text-gray-400">New Password</Label>
+                <Input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="••••••••" />
+              </div>
+              <div>
+                <Label className="text-gray-400">Confirm</Label>
+                <Input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})}
+                  className="bg-brand-900 border-brand-700 text-white mt-1" placeholder="••••••••" />
+              </div>
+            </div>
+            {passwordMessage && (
+              <p className={`text-sm ${passwordMessage.startsWith('Error') || passwordMessage.includes('not match') || passwordMessage.includes('incorrect') || passwordMessage.includes('6') ? 'text-red-400' : 'text-green-400'}`}>{passwordMessage}</p>
+            )}
+            <Button onClick={handleChangePassword} disabled={passwordSaving} className="btn-primary-gradient">
+              {passwordSaving ? 'Updating...' : 'Update Password'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <main className="pt-16 min-h-screen bg-brand-900">
       <UserInfoBar />
@@ -1074,6 +1252,15 @@ export function WholesalerDashboard() {
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  activeTab === 'settings' ? 'bg-psy-neonPurple/20 text-psy-neonPurple' : 'text-gray-400 hover:text-white hover:bg-brand-700'
+                }`}
+              >
+                <SettingsIcon className="w-5 h-5" />
+                Settings
+              </button>
             </nav>
 
             <div className="mt-8 pt-8 border-t border-brand-700">
@@ -1153,6 +1340,15 @@ export function WholesalerDashboard() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex flex-col items-center p-2 rounded-lg ${
+                activeTab === 'settings' ? 'text-psy-neonPurple' : 'text-gray-400'
+              }`}
+            >
+              <SettingsIcon className="w-5 h-5" />
+              <span className="text-xs mt-1">Settings</span>
+            </button>
           </div>
         </div>
 
@@ -1167,6 +1363,7 @@ export function WholesalerDashboard() {
                 {activeTab === 'invoices' && 'Invoices'}
                 {activeTab === 'agreements' && 'Agreements'}
                 {activeTab === 'store-locations' && 'Store Locations'}
+                {activeTab === 'settings' && 'Settings'}
               </h1>
               <Link to="/products">
                 <Button variant="outline" className="border-white/10 text-gray-300 hover:bg-white/5">
@@ -1180,6 +1377,7 @@ export function WholesalerDashboard() {
             {activeTab === 'invoices' && renderInvoices()}
             {activeTab === 'agreements' && renderAgreements()}
             {activeTab === 'store-locations' && renderStoreLocations()}
+            {activeTab === 'settings' && renderSettings()}
           </div>
         </div>
       </div>

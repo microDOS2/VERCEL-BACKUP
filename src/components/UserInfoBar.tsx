@@ -1,79 +1,36 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
-import { User, Shield, Users, Store, MapPin, Crown, Sparkles } from 'lucide-react'
-
-interface UserInfo {
-  id: string
-  business_name: string | null
-  email: string
-  role: string
-  states: string[]
-  manager_name: string | null
-}
+import { User, Shield, Users, Store, MapPin, Crown, Sparkles, Loader2 } from 'lucide-react'
 
 const roleConfig: Record<string, { label: string; color: string; icon: any }> = {
-  admin:        { label: 'Admin',        color: 'bg-[#9a02d0]/20 text-[#9a02d0]', icon: Crown },
-  sales_manager:{ label: 'Sales Manager',color: 'bg-[#44f80c]/20 text-[#44f80c]', icon: Shield },
-  sales_rep:    { label: 'Sales Rep',    color: 'bg-[#ff66c4]/20 text-[#ff66c4]', icon: Users },
-  wholesaler:   { label: 'Wholesaler',   color: 'bg-[#44f80c]/20 text-[#44f80c]', icon: Store },
-  distributor:  { label: 'Distributor',  color: 'bg-[#ff66c4]/20 text-[#ff66c4]', icon: Store },
-  influencer:   { label: 'Influencer',   color: 'bg-[#ff66c4]/20 text-[#ff66c4]', icon: Sparkles },
+  admin:         { label: 'Admin',         color: 'bg-[#9a02d0]/20 text-[#9a02d0]', icon: Crown },
+  sales_manager: { label: 'Sales Manager', color: 'bg-[#44f80c]/20 text-[#44f80c]', icon: Shield },
+  sales_rep:     { label: 'Sales Rep',     color: 'bg-[#ff66c4]/20 text-[#ff66c4]', icon: Users },
+  wholesaler:    { label: 'Wholesaler',    color: 'bg-[#44f80c]/20 text-[#44f80c]', icon: Store },
+  distributor:   { label: 'Distributor',   color: 'bg-[#ff66c4]/20 text-[#ff66c4]', icon: Store },
+  influencer:    { label: 'Influencer',    color: 'bg-[#ff66c4]/20 text-[#ff66c4]', icon: Sparkles },
 }
 
 export function UserInfoBar() {
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function fetchUser() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        setLoading(false)
-        return
-      }
-      const { data } = await supabase
-        .from('users')
-        .select('id, business_name, email, role, manager_id')
-        .eq('id', session.user.id)
-        .single()
-      if (!data) {
-        setLoading(false)
-        return
-      }
-      let states: string[] = []
-      let manager_name: string | null = null
-      if (data.role === 'sales_manager') {
-        const { data: stateData } = await supabase
-          .from('manager_state_assignments')
-          .select('state_code')
-          .eq('manager_id', data.id)
-        states = (stateData || []).map((s: any) => s.state_code)
-      }
-      if (data.role === 'sales_rep' && data.manager_id) {
-        const { data: mgrJson } = await supabase
-          .rpc('get_my_manager', { p_rep_id: session.user.id })
-        manager_name = mgrJson?.manager_name || mgrJson?.manager_email || 'Unknown'
-      }
-      setUser({ ...data, states, manager_name } as UserInfo)
-      setLoading(false)
-    }
-    fetchUser()
-  }, [])
+  const { user, loading } = useAuth()
 
   if (loading) {
     return (
-      <div className="h-14 bg-[#150f24] border-b border-white/10 flex items-center px-4 animate-pulse">
-        <div className="w-8 h-8 rounded-full bg-white/10" />
-        <div className="ml-3 space-y-1">
-          <div className="w-24 h-3 bg-white/10 rounded" />
-          <div className="w-16 h-2 bg-white/10 rounded" />
-        </div>
+      <div className="bg-[#150f24] border-b border-white/10 px-4 py-2.5 flex items-center gap-3">
+        <Loader2 className="w-4 h-4 text-[#9a02d0] animate-spin" />
+        <span className="text-sm text-gray-500">Loading user...</span>
       </div>
     )
   }
 
-  if (!user) return null
+  if (!user) {
+    return (
+      <div className="bg-[#150f24] border-b border-white/10 px-4 py-2.5 flex items-center gap-3">
+        <User className="w-4 h-4 text-gray-600" />
+        <span className="text-sm text-gray-500">Not logged in</span>
+      </div>
+    )
+  }
 
   const config = roleConfig[user.role] || { label: user.role, color: 'bg-gray-500/20 text-gray-400', icon: User }
   const RoleIcon = config.icon
@@ -98,18 +55,18 @@ export function UserInfoBar() {
             {user.email && user.business_name && (
               <p className="text-xs text-gray-500 truncate">{user.email}</p>
             )}
-            {user.role === 'sales_rep' && user.manager_name && (
+            {'manager_name' in user && (user as any).manager_name && (
               <p className="text-xs text-gray-400 truncate">
-                Manager: <span className="text-[#44f80c]">{user.manager_name}</span>
+                Manager: <span className="text-[#44f80c]">{(user as any).manager_name}</span>
               </p>
             )}
           </div>
         </div>
-        {user.states.length > 0 && (
+        {'states' in user && (user as any).states?.length > 0 && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <MapPin className="w-3.5 h-3.5 text-[#9a02d0]" />
             <span className="text-xs text-gray-400">
-              Territory: <span className="text-white font-medium">{user.states.join(', ')}</span>
+              Territory: <span className="text-white font-medium">{(user as any).states.join(', ')}</span>
             </span>
           </div>
         )}
