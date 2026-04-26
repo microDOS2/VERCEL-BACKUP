@@ -59,37 +59,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { UserInfoBar } from '@/components/UserInfoBar';
 
-interface Order {
-  id: string;
-  poNumber: string;
-  date: string;
-  items: number;
-  total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-}
-
-interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  poNumber: string;
-  date: string;
-  dueDate: string;
-  amount: number;
-  status: 'paid' | 'pending' | 'overdue';
-}
-
-interface Agreement {
-  id: string;
-  title: string;
-  type: 'wholesale' | 'terms' | 'nda' | 'compliance';
-  version: string;
-  sentDate: string;
-  signedDate?: string;
-  expiresDate?: string;
-  status: 'pending' | 'signed' | 'expired' | 'declined';
-  signedBy?: string;
-}
-
 interface StoreLocation {
   id: string;
   user_id: string;
@@ -106,61 +75,43 @@ interface StoreLocation {
   created_at: string;
 }
 
-const mockOrders: Order[] = [
-  { id: '1', poNumber: 'PO-2026-001', date: '2026-04-10', items: 50, total: 2450, status: 'delivered' },
-  { id: '2', poNumber: 'PO-2026-002', date: '2026-04-08', items: 100, total: 4900, status: 'shipped' },
-  { id: '3', poNumber: 'PO-2026-003', date: '2026-04-05', items: 25, total: 1225, status: 'processing' },
-  { id: '4', poNumber: 'PO-2026-004', date: '2026-04-01', items: 75, total: 3675, status: 'pending' },
-  { id: '5', poNumber: 'PO-2026-005', date: '2026-03-28', items: 200, total: 9800, status: 'delivered' },
-];
+// Types matching Supabase schema
+type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
+type AgreementStatus = 'pending' | 'sent' | 'signed' | 'active' | 'expired';
+type AgreementType = 'wholesale' | 'terms' | 'nda' | 'compliance';
 
-const mockInvoices: Invoice[] = [
-  { id: '1', invoiceNumber: 'INV-2026-001', poNumber: 'PO-2026-001', date: '2026-04-10', dueDate: '2026-05-10', amount: 2450, status: 'paid' },
-  { id: '2', invoiceNumber: 'INV-2026-002', poNumber: 'PO-2026-002', date: '2026-04-08', dueDate: '2026-05-08', amount: 4900, status: 'pending' },
-  { id: '3', invoiceNumber: 'INV-2026-003', poNumber: 'PO-2026-003', date: '2026-04-05', dueDate: '2026-05-05', amount: 1225, status: 'pending' },
-  { id: '4', invoiceNumber: 'INV-2026-004', poNumber: 'PO-2026-005', date: '2026-03-28', dueDate: '2026-04-28', amount: 9800, status: 'overdue' },
-];
+interface OrderRow {
+  id: string;
+  po_number: string;
+  items: number;
+  total: number;
+  status: OrderStatus;
+  created_at: string;
+}
 
-const mockAgreements: Agreement[] = [
-  {
-    id: '1',
-    title: 'Wholesale Distribution Agreement',
-    type: 'wholesale',
-    version: 'v2.1',
-    sentDate: '2026-04-01',
-    signedDate: '2026-04-03',
-    expiresDate: '2027-04-03',
-    status: 'signed',
-    signedBy: 'John Smith',
-  },
-  {
-    id: '2',
-    title: 'Terms of Service - Retail Partners',
-    type: 'terms',
-    version: 'v1.5',
-    sentDate: '2026-04-10',
-    status: 'pending',
-  },
-  {
-    id: '3',
-    title: 'Non-Disclosure Agreement',
-    type: 'nda',
-    version: 'v1.0',
-    sentDate: '2026-03-15',
-    signedDate: '2026-03-18',
-    expiresDate: '2028-03-18',
-    status: 'signed',
-    signedBy: 'John Smith',
-  },
-  {
-    id: '4',
-    title: 'State Compliance Certification',
-    type: 'compliance',
-    version: 'v3.0',
-    sentDate: '2026-04-12',
-    status: 'pending',
-  },
-];
+interface InvoiceRow {
+  id: string;
+  invoice_number: string;
+  order_id: string | null;
+  amount: number;
+  status: InvoiceStatus;
+  date: string;
+  due_date: string;
+}
+
+interface AgreementRow {
+  id: string;
+  title: string;
+  type: AgreementType;
+  version: string;
+  sent_date: string;
+  signed_date: string | null;
+  expires_date: string | null;
+  status: AgreementStatus;
+  signed_by: string | null;
+  document_url: string | null;
+}
 
 export function WholesalerDashboard() {
   const navigate = useNavigate();
@@ -173,9 +124,54 @@ export function WholesalerDashboard() {
     }
   }, [authLoading, user, navigate]);
 
+  // Fetch real orders, invoices, agreements from Supabase
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchData = async () => {
+      setDataLoading(true);
+
+      const [{ data: o, error: oErr }, { data: i, error: iErr }, { data: a, error: aErr }] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('id, po_number, items, total, status, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('invoices')
+          .select('id, invoice_number, order_id, amount, status, date, due_date')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false }),
+        supabase
+          .from('agreements')
+          .select('id, title, type, version, sent_date, signed_date, expires_date, status, signed_by, document_url')
+          .eq('user_id', user.id)
+          .order('sent_date', { ascending: false }),
+      ]);
+
+      if (oErr) console.error('[WholesalerDashboard] orders error:', oErr);
+      if (iErr) console.error('[WholesalerDashboard] invoices error:', iErr);
+      if (aErr) console.error('[WholesalerDashboard] agreements error:', aErr);
+
+      setOrders((o as OrderRow[]) || []);
+      setInvoices((i as InvoiceRow[]) || []);
+      setAgreements((a as AgreementRow[]) || []);
+      setDataLoading(false);
+    };
+
+    fetchData();
+  }, [user]);
+
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'invoices' | 'agreements' | 'store-locations'>('overview');
   const [orderSearch, setOrderSearch] = useState('');
   const [orderFilter, setOrderFilter] = useState('all');
+
+  // Real data from Supabase
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [agreements, setAgreements] = useState<AgreementRow[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+
   const [stores, setStores] = useState<StoreLocation[]>([]);
   const [storesLoading, setStoresLoading] = useState(false);
   const [storeDialogOpen, setStoreDialogOpen] = useState(false);
@@ -192,7 +188,7 @@ export function WholesalerDashboard() {
     is_primary: false,
   });
 
-  const getStatusBadge = (status: Order['status']) => {
+  const getStatusBadge = (status: OrderStatus) => {
     const styles = {
       pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
       processing: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -203,26 +199,28 @@ export function WholesalerDashboard() {
     return styles[status];
   };
 
-  const getInvoiceStatusBadge = (status: Invoice['status']) => {
-    const styles = {
+  const getInvoiceStatusBadge = (status: InvoiceStatus) => {
+    const styles: Record<InvoiceStatus, string> = {
       paid: 'bg-green-500/10 text-green-400 border-green-500/20',
       pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
       overdue: 'bg-red-500/10 text-red-400 border-red-500/20',
+      cancelled: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
     };
     return styles[status];
   };
 
-  const getAgreementStatusBadge = (status: Agreement['status']) => {
-    const styles = {
+  const getAgreementStatusBadge = (status: AgreementStatus) => {
+    const styles: Record<AgreementStatus, string> = {
       pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+      sent: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
       signed: 'bg-green-500/10 text-green-400 border-green-500/20',
+      active: 'bg-green-500/10 text-green-400 border-green-500/20',
       expired: 'bg-red-500/10 text-red-400 border-red-500/20',
-      declined: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
     };
     return styles[status];
   };
 
-  const getAgreementTypeLabel = (type: Agreement['type']) => {
+  const getAgreementTypeLabel = (type: AgreementType) => {
     const labels = {
       wholesale: 'Wholesale',
       terms: 'Terms of Service',
@@ -232,7 +230,7 @@ export function WholesalerDashboard() {
     return labels[type];
   };
 
-  const getStatusIcon = (status: Order['status']) => {
+  const getStatusIcon = (status: OrderStatus) => {
     const icons = {
       pending: Clock,
       processing: Package,
@@ -243,13 +241,13 @@ export function WholesalerDashboard() {
     return icons[status];
   };
 
-  const filteredOrders = mockOrders.filter((order) => {
-    const matchesSearch = order.poNumber.toLowerCase().includes(orderSearch.toLowerCase());
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch = order.po_number.toLowerCase().includes(orderSearch.toLowerCase());
     const matchesFilter = orderFilter === 'all' || order.status === orderFilter;
     return matchesSearch && matchesFilter;
   });
 
-  const pendingAgreements = mockAgreements.filter((a) => a.status === 'pending').length;
+  const pendingAgreementsCount = agreements.filter((a) => a.status === 'pending' || a.status === 'sent').length;
 
   // Fetch store locations for the logged-in wholesaler
   useEffect(() => {
@@ -395,11 +393,11 @@ export function WholesalerDashboard() {
   };
 
   const stats = {
-    totalOrders: mockOrders.length,
-    totalSpent: mockOrders.reduce((acc, order) => acc + order.total, 0),
-    pendingInvoices: mockInvoices.filter((inv) => inv.status === 'pending').length,
-    overdueAmount: mockInvoices.filter((inv) => inv.status === 'overdue').reduce((acc, inv) => acc + inv.amount, 0),
-    pendingAgreements,
+    totalOrders: orders.length,
+    totalSpent: orders.reduce((acc, order) => acc + order.total, 0),
+    pendingInvoices: invoices.filter((inv) => inv.status === 'pending').length,
+    overdueAmount: invoices.filter((inv) => inv.status === 'overdue').reduce((acc, inv) => acc + inv.amount, 0),
+    pendingAgreements: pendingAgreementsCount,
   };
 
   const renderOverview = () => (
@@ -480,26 +478,30 @@ export function WholesalerDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockOrders.slice(0, 3).map((order) => (
-                <TableRow key={order.id} className="border-brand-700">
-                  <TableCell className="font-medium text-white">{order.poNumber}</TableCell>
-                  <TableCell className="text-gray-300">{order.date}</TableCell>
-                  <TableCell className="text-gray-300">{order.items}</TableCell>
-                  <TableCell className="text-gray-300">${order.total.toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getStatusBadge(order.status)}>
-                      {order.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {orders.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-gray-500 py-8">No orders yet</TableCell></TableRow>
+              ) : (
+                orders.slice(0, 3).map((order) => (
+                  <TableRow key={order.id} className="border-brand-700">
+                    <TableCell className="font-medium text-white">{order.po_number}</TableCell>
+                    <TableCell className="text-gray-300">{order.created_at?.slice(0, 10) || '—'}</TableCell>
+                    <TableCell className="text-gray-300">{order.items}</TableCell>
+                    <TableCell className="text-gray-300">${order.total.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getStatusBadge(order.status)}>
+                        {order.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       {/* Pending Agreements Alert */}
-      {pendingAgreements > 0 && (
+      {pendingAgreementsCount > 0 && (
         <Card className="bg-psy-neonPurple/10 border-psy-neonPurple/30">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -509,10 +511,10 @@ export function WholesalerDashboard() {
                 </div>
                 <div>
                   <h3 className="font-bold text-white">Action Required: Pending Agreements</h3>
-                  <p className="text-sm text-gray-400">You have {pendingAgreements} agreement(s) awaiting your signature</p>
+                  <p className="text-sm text-gray-400">You have {pendingAgreementsCount} agreement(s) awaiting your signature</p>
                 </div>
               </div>
-              <Button 
+              <Button
                 className="btn-primary-gradient"
                 onClick={() => setActiveTab('agreements')}
               >
@@ -612,33 +614,39 @@ export function WholesalerDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOrders.map((order) => {
-                const StatusIcon = getStatusIcon(order.status);
-                return (
-                  <TableRow key={order.id} className="border-brand-700">
-                    <TableCell className="font-medium text-white">{order.poNumber}</TableCell>
-                    <TableCell className="text-gray-300">{order.date}</TableCell>
-                    <TableCell className="text-gray-300">{order.items}</TableCell>
-                    <TableCell className="text-gray-300">${order.total.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getStatusBadge(order.status)}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {dataLoading ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-gray-500 py-8">Loading orders...</TableCell></TableRow>
+              ) : filteredOrders.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-gray-500 py-8">No orders found</TableCell></TableRow>
+              ) : (
+                filteredOrders.map((order) => {
+                  const StatusIcon = getStatusIcon(order.status);
+                  return (
+                    <TableRow key={order.id} className="border-brand-700">
+                      <TableCell className="font-medium text-white">{order.po_number}</TableCell>
+                      <TableCell className="text-gray-300">{order.created_at?.slice(0, 10) || '—'}</TableCell>
+                      <TableCell className="text-gray-300">{order.items}</TableCell>
+                      <TableCell className="text-gray-300">${order.total.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={getStatusBadge(order.status)}>
+                          <StatusIcon className="w-3 h-3 mr-1" />
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -671,30 +679,36 @@ export function WholesalerDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockInvoices.map((invoice) => (
-                <TableRow key={invoice.id} className="border-brand-700">
-                  <TableCell className="font-medium text-white">{invoice.invoiceNumber}</TableCell>
-                  <TableCell className="text-gray-300">{invoice.poNumber}</TableCell>
-                  <TableCell className="text-gray-300">{invoice.date}</TableCell>
-                  <TableCell className="text-gray-300">{invoice.dueDate}</TableCell>
-                  <TableCell className="text-gray-300">${invoice.amount.toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getInvoiceStatusBadge(invoice.status)}>
-                      {invoice.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {dataLoading ? (
+                <TableRow><TableCell colSpan={7} className="text-center text-gray-500 py-8">Loading invoices...</TableCell></TableRow>
+              ) : invoices.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center text-gray-500 py-8">No invoices found</TableCell></TableRow>
+              ) : (
+                invoices.map((invoice) => (
+                  <TableRow key={invoice.id} className="border-brand-700">
+                    <TableCell className="font-medium text-white">{invoice.invoice_number}</TableCell>
+                    <TableCell className="text-gray-300">{invoice.order_id ? invoice.order_id.slice(0, 8) : '—'}</TableCell>
+                    <TableCell className="text-gray-300">{invoice.date?.slice(0, 10) || '—'}</TableCell>
+                    <TableCell className="text-gray-300">{invoice.due_date?.slice(0, 10) || '—'}</TableCell>
+                    <TableCell className="text-gray-300">${invoice.amount.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getInvoiceStatusBadge(invoice.status)}>
+                        {invoice.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -843,98 +857,104 @@ export function WholesalerDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockAgreements.map((agreement) => (
-                <TableRow key={agreement.id} className="border-brand-700">
-                  <TableCell>
-                    <div className="font-medium text-white">{agreement.title}</div>
-                    {agreement.signedBy && (
-                      <div className="text-xs text-gray-500">Signed by: {agreement.signedBy}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="bg-brand-900 text-gray-300 border-brand-700">
-                      {getAgreementTypeLabel(agreement.type)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-gray-300">{agreement.version}</TableCell>
-                  <TableCell className="text-gray-300">{agreement.sentDate}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getAgreementStatusBadge(agreement.status)}>
-                      {agreement.status === 'signed' && <CheckCircle className="w-3 h-3 mr-1" />}
-                      {agreement.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                      {agreement.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      {agreement.status === 'pending' ? (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button 
-                              size="sm" 
-                              className="btn-primary-gradient"
-                            >
-                              <FileSignature className="w-4 h-4 mr-1" />
-                              Review & Sign
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="bg-[#150f24] border border-white/10 text-white max-w-2xl max-h-[80vh] overflow-y-auto !z-[9999]">
-                            <DialogHeader>
-                              <DialogTitle className="text-xl">{agreement.title}</DialogTitle>
-                              <DialogDescription className="text-gray-400">
-                                Version {agreement.version} • Sent on {agreement.sentDate}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 mt-4">
-                              <div className="bg-[#0a0514] border border-white/10 rounded-lg p-6">
-                                <h4 className="font-bold text-white mb-4">Document Preview</h4>
-                                <div className="space-y-4 text-sm text-gray-300">
-                                  <p>
-                                    This is a preview of the agreement document. In a production environment, 
-                                    this would display the actual PDF document with the full terms and conditions.
-                                  </p>
-                                  <div className="border-t border-white/10 pt-4">
-                                    <h5 className="font-semibold text-white mb-2">Key Terms:</h5>
-                                    <ul className="space-y-2 list-disc list-inside">
-                                      <li>Minimum order quantities apply</li>
-                                      <li>Net 30 payment terms</li>
-                                      <li>Authorized reseller status required</li>
-                                      <li>Compliance with state regulations mandatory</li>
-                                      <li>Product returns subject to approval</li>
-                                    </ul>
+              {dataLoading ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-gray-500 py-8">Loading agreements...</TableCell></TableRow>
+              ) : agreements.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center text-gray-500 py-8">No agreements found</TableCell></TableRow>
+              ) : (
+                agreements.map((agreement) => (
+                  <TableRow key={agreement.id} className="border-brand-700">
+                    <TableCell>
+                      <div className="font-medium text-white">{agreement.title}</div>
+                      {agreement.signed_by && (
+                        <div className="text-xs text-gray-500">Signed by: {agreement.signed_by}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-brand-900 text-gray-300 border-brand-700">
+                        {getAgreementTypeLabel(agreement.type)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-gray-300">{agreement.version}</TableCell>
+                    <TableCell className="text-gray-300">{agreement.sent_date?.slice(0, 10) || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getAgreementStatusBadge(agreement.status === 'sent' ? 'pending' : agreement.status)}>
+                        {agreement.status === 'signed' && <CheckCircle className="w-3 h-3 mr-1" />}
+                        {(agreement.status === 'pending' || agreement.status === 'sent') && <Clock className="w-3 h-3 mr-1" />}
+                        {agreement.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {agreement.status === 'pending' || agreement.status === 'sent' ? (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                className="btn-primary-gradient"
+                              >
+                                <FileSignature className="w-4 h-4 mr-1" />
+                                Review & Sign
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-[#150f24] border border-white/10 text-white max-w-2xl max-h-[80vh] overflow-y-auto !z-[9999]">
+                              <DialogHeader>
+                                <DialogTitle className="text-xl">{agreement.title}</DialogTitle>
+                                <DialogDescription className="text-gray-400">
+                                  Version {agreement.version} • Sent on {agreement.sent_date?.slice(0, 10) || '—'}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 mt-4">
+                                <div className="bg-[#0a0514] border border-white/10 rounded-lg p-6">
+                                  <h4 className="font-bold text-white mb-4">Document Preview</h4>
+                                  <div className="space-y-4 text-sm text-gray-300">
+                                    <p>
+                                      This is a preview of the agreement document. In a production environment,
+                                      this would display the actual PDF document with the full terms and conditions.
+                                    </p>
+                                    <div className="border-t border-white/10 pt-4">
+                                      <h5 className="font-semibold text-white mb-2">Key Terms:</h5>
+                                      <ul className="space-y-2 list-disc list-inside">
+                                        <li>Minimum order quantities apply</li>
+                                        <li>Net 30 payment terms</li>
+                                        <li>Authorized reseller status required</li>
+                                        <li>Compliance with state regulations mandatory</li>
+                                        <li>Product returns subject to approval</li>
+                                      </ul>
+                                    </div>
                                   </div>
                                 </div>
+                                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                                  <p className="text-sm text-yellow-400">
+                                    <strong>Important:</strong> By signing this agreement, you acknowledge that you have
+                                    read and agree to all terms and conditions. This is a legally binding document.
+                                  </p>
+                                </div>
+                                <div className="flex gap-3">
+                                  <Button className="flex-1 bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white font-semibold">
+                                    <Send className="w-4 h-4 mr-2" />
+                                    Proceed to Sign
+                                  </Button>
+                                  <Button variant="outline" className="border-white/10 text-gray-300 hover:bg-white/5">
+                                    Download PDF
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-                                <p className="text-sm text-yellow-400">
-                                  <strong>Important:</strong> By signing this agreement, you acknowledge that you have 
-                                  read and agree to all terms and conditions. This is a legally binding document.
-                                </p>
-                              </div>
-                              <div className="flex gap-3">
-                                <Button className="flex-1 bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white font-semibold">
-                                  <Send className="w-4 h-4 mr-2" />
-                                  Proceed to Sign
-                                </Button>
-                                <Button variant="outline" className="border-white/10 text-gray-300 hover:bg-white/5">
-                                  Download PDF
-                                </Button>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      ) : (
+                            </DialogContent>
+                          </Dialog>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                          <Eye className="w-4 h-4" />
+                          <Download className="w-4 h-4" />
                         </Button>
-                      )}
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -1032,9 +1052,9 @@ export function WholesalerDashboard() {
               >
                 <FileSignature className="w-5 h-5" />
                 Agreements
-                {pendingAgreements > 0 && (
+                {pendingAgreementsCount > 0 && (
                   <span className="ml-auto bg-psy-neonPurple text-white text-xs px-2 py-0.5 rounded-full">
-                    {pendingAgreements}
+                    {pendingAgreementsCount}
                   </span>
                 )}
               </button>
@@ -1113,9 +1133,9 @@ export function WholesalerDashboard() {
             >
               <FileSignature className="w-5 h-5" />
               <span className="text-xs mt-1">Agreements</span>
-              {pendingAgreements > 0 && (
+              {pendingAgreementsCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-psy-neonPurple text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
-                  {pendingAgreements}
+                  {pendingAgreementsCount}
                 </span>
               )}
             </button>
