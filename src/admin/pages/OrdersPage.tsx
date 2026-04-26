@@ -34,10 +34,12 @@ export function OrdersPage() {
   useEffect(() => { fetchOrders(); fetchReferences() }, [page, search])
 
   const fetchReferences = async () => {
-    const [{ data: u }, { data: p }] = await Promise.all([
+    const [{ data: u, error: uErr }, { data: p, error: pErr }] = await Promise.all([
       supabase.from('profiles').select('id, full_name, email'),
       supabase.from('products').select('id, name, sku, price').eq('is_active', true)
     ])
+    if (uErr) console.error('[OrdersPage] profiles error:', uErr)
+    if (pErr) console.error('[OrdersPage] products error:', pErr)
     setUsers(u || [])
     setProductsList(p || [])
   }

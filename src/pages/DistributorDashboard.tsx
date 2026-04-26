@@ -9,7 +9,6 @@ import { UserInfoBar } from '@/components/UserInfoBar';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import {
-  ShoppingCart,
   FileText,
   Receipt,
   ArrowRight,
@@ -105,13 +104,6 @@ export function DistributorDashboard() {
               <h1 className="text-2xl font-bold text-white mb-1">Distributor Dashboard</h1>
               <p className="text-gray-400">Welcome back, {user?.business_name || user?.email}</p>
             </div>
-            <Button
-              onClick={() => navigate('/distributor-orders')}
-              className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white"
-            >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              View Orders
-            </Button>
           </div>
 
           {/* Stats */}
