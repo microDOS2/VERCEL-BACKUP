@@ -11,23 +11,20 @@ import {
   Clock,
   AlertCircle,
   Settings as SettingsIcon,
-  Lock,
-  Save,
-  Loader2,
-  MapPin,
-  Phone,
-  Mail,
   User,
   ChevronDown,
   ChevronUp,
   Box,
   CheckCheck,
+  MapPin,
+  Phone,
+  Mail,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { PasswordInput } from '@/components/ui/password-input';
 import {
   Table,
   TableBody,
@@ -76,10 +73,8 @@ export function ShippingDashboard() {
   // Tracking input state (per order)
   const [trackingInputs, setTrackingInputs] = useState<Record<string, { tracking: string; carrier: string }>>({});
 
-  // Settings state
-  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
-  const [passwordSaving, setPasswordSaving] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  // Settings state — read only, no password editing for employee accounts
+  // (password changes managed by admin only)
 
   // Fetch orders that need fulfillment attention
   useEffect(() => {
@@ -587,84 +582,41 @@ export function ShippingDashboard() {
   // ─── Render Settings ───────────────────────────────────────────────
   const renderSettings = () => (
     <div className="space-y-6 max-w-2xl">
-      <h2 className="text-2xl font-bold text-white">Account Settings</h2>
+      <h2 className="text-2xl font-bold text-white">Account Information</h2>
 
       <Card className="bg-brand-800 border-brand-700">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            <Lock className="w-5 h-5 text-[#9a02d0]" />
-            Change Password
+            <User className="w-5 h-5 text-[#9a02d0]" />
+            Profile Details
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {passwordMessage && (
-            <div className={`p-3 rounded-md text-sm ${passwordMessage.includes('success') ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-              {passwordMessage}
+          <div className="space-y-4">
+            <div>
+              <Label className="text-gray-400 text-xs uppercase tracking-wider">Name</Label>
+              <p className="text-white font-medium">{user?.business_name || '—'}</p>
             </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="current-password" className="text-gray-300">Current Password</Label>
-            <PasswordInput
-              id="current-password"
-              value={passwordForm.current}
-              onChange={(e) => setPasswordForm(prev => ({ ...prev, current: e.target.value }))}
-              className="bg-brand-900 border-brand-700 text-white"
-            />
+            <div>
+              <Label className="text-gray-400 text-xs uppercase tracking-wider">Email</Label>
+              <p className="text-white font-medium">{user?.email || '—'}</p>
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs uppercase tracking-wider">Role</Label>
+              <p className="text-white font-medium capitalize">{user?.role?.replace(/_/g, ' ') || '—'}</p>
+            </div>
+            <div>
+              <Label className="text-gray-400 text-xs uppercase tracking-wider">Status</Label>
+              <p className="text-green-400 font-medium capitalize">{user?.status || '—'}</p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="new-password" className="text-gray-300">New Password</Label>
-            <PasswordInput
-              id="new-password"
-              value={passwordForm.new}
-              onChange={(e) => setPasswordForm(prev => ({ ...prev, new: e.target.value }))}
-              className="bg-brand-900 border-brand-700 text-white"
-            />
+
+          <div className="pt-4 border-t border-brand-700">
+            <p className="text-sm text-gray-500">
+              Account details are managed by your administrator. 
+              To update your name or password, please contact an admin.
+            </p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password" className="text-gray-300">Confirm New Password</Label>
-            <PasswordInput
-              id="confirm-password"
-              value={passwordForm.confirm}
-              onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
-              className="bg-brand-900 border-brand-700 text-white"
-            />
-          </div>
-          <Button
-            onClick={async () => {
-              if (!passwordForm.current || !passwordForm.new || !passwordForm.confirm) {
-                setPasswordMessage('Please fill in all password fields');
-                return;
-              }
-              if (passwordForm.new !== passwordForm.confirm) {
-                setPasswordMessage('New passwords do not match');
-                return;
-              }
-              setPasswordSaving(true);
-              setPasswordMessage(null);
-              const { error } = await supabase.auth.updateUser({ password: passwordForm.new });
-              if (error) {
-                setPasswordMessage('Error: ' + error.message);
-              } else {
-                setPasswordMessage('Password updated successfully');
-                setPasswordForm({ current: '', new: '', confirm: '' });
-              }
-              setPasswordSaving(false);
-            }}
-            disabled={passwordSaving}
-            className="bg-gradient-to-r from-[#9a02d0] to-[#44f80c] text-white font-semibold"
-          >
-            {passwordSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Update Password
-              </>
-            )}
-          </Button>
         </CardContent>
       </Card>
     </div>
@@ -709,12 +661,12 @@ export function ShippingDashboard() {
           <div className="flex items-center gap-3 mt-6 pt-6 border-t border-white/10">
             <div className="w-10 h-10 rounded-full bg-[#9a02d0]/20 flex items-center justify-center flex-shrink-0">
               <span className="text-[#9a02d0] font-bold text-sm">
-                {(user?.email || 'SF').slice(0, 2).toUpperCase()}
+                {(user?.business_name || user?.email || 'SF').slice(0, 2).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-white font-medium text-sm truncate">{user?.email || 'Shipper'}</p>
-              <p className="text-xs text-gray-500">Shipping / Fulfillment</p>
+              <p className="text-white font-medium text-sm truncate">{user?.business_name || user?.email || 'Shipper'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email || ''}</p>
             </div>
           </div>
         </div>
@@ -768,9 +720,9 @@ export function ShippingDashboard() {
         </Link>
         <div className="flex items-center gap-2">
           {/* Mobile user avatar */}
-          <div className="w-8 h-8 rounded-full bg-[#9a02d0]/20 flex items-center justify-center mr-1">
+          <div className="w-8 h-8 rounded-full bg-[#9a02d0]/20 flex items-center justify-center mr-1" title={user?.business_name || user?.email || 'Shipper'}>
             <span className="text-[#9a02d0] font-bold text-xs">
-              {(user?.email || 'SF').slice(0, 2).toUpperCase()}
+              {(user?.business_name || user?.email || 'SF').slice(0, 2).toUpperCase()}
             </span>
           </div>
           <button
