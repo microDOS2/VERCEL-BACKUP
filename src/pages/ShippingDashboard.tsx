@@ -704,6 +704,19 @@ export function ShippingDashboard() {
             </span>
           </Link>
           <p className="text-xs text-gray-500 mt-1">Shipping &amp; Fulfillment</p>
+
+          {/* Logged-in user profile */}
+          <div className="flex items-center gap-3 mt-6 pt-6 border-t border-white/10">
+            <div className="w-10 h-10 rounded-full bg-[#9a02d0]/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-[#9a02d0] font-bold text-sm">
+                {(user?.email || 'SF').slice(0, 2).toUpperCase()}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-medium text-sm truncate">{user?.email || 'Shipper'}</p>
+              <p className="text-xs text-gray-500">Shipping / Fulfillment</p>
+            </div>
+          </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
@@ -754,6 +767,12 @@ export function ShippingDashboard() {
           <span className="text-[#44f80c]">(2)</span>
         </Link>
         <div className="flex items-center gap-2">
+          {/* Mobile user avatar */}
+          <div className="w-8 h-8 rounded-full bg-[#9a02d0]/20 flex items-center justify-center mr-1">
+            <span className="text-[#9a02d0] font-bold text-xs">
+              {(user?.email || 'SF').slice(0, 2).toUpperCase()}
+            </span>
+          </div>
           <button
             onClick={() => setActiveTab('overview')}
             className={`p-2 rounded-lg ${activeTab === 'overview' ? 'bg-[#9a02d0]/20 text-white' : 'text-gray-400'}`}
