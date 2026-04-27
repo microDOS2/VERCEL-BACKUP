@@ -692,7 +692,7 @@ export function OrdersInvoicesPage() {
                   <option value="">None — standalone invoice</option>
                   {orders.map(o => (
                     <option key={o.id} value={o.id}>
-                      {o.po_number} — {o.profiles?.business_name || 'Unknown'} — ${o.total}
+                      {o.po_number} — {(o as any).users?.business_name || (o as any).profiles?.business_name || 'Unknown'} — ${o.total}
                     </option>
                   ))}
                 </select>
