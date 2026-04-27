@@ -61,11 +61,11 @@ export function DashboardPage() {
         { count: productCount },
         { count: approvalCount }
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('users').select('*', { count: 'exact', head: true }),
         supabase.from('orders').select('*', { count: 'exact', head: true }),
         supabase.from('orders').select('total, status, created_at').order('created_at', { ascending: false }).limit(100),
         supabase.from('products').select('*', { count: 'exact', head: true }),
-        supabase.from('approvals').select('*', { count: 'exact', head: true }).eq('status', 'pending')
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending')
       ])
 
       const totalRevenue = ordersData?.reduce((sum, o) => sum + (o.total || 0), 0) || 0
