@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 import {
@@ -42,6 +42,30 @@ interface Video {
 }
 
 export function LandingPage() {
+  const navigate = useNavigate()
+
+  // Handle password reset redirect from Supabase auth callback
+  // Supabase redirects to /?redirect=reset-password OR puts errors in hash: #error=access_denied...
+  // With HashRouter, Supabase error params end up in the hash fragment which becomes the "route"
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const redirect = params.get('redirect')
+    const hash = window.location.hash
+
+    // Case 1: Normal redirect from our edge function
+    if (redirect === 'reset-password') {
+      navigate('/reset-password', { replace: true })
+      return
+    }
+
+    // Case 2: Supabase put error params in the hash (e.g., #error=access_denied&error_code=otp_expired)
+    // HashRouter sees this as the route, so we need to redirect to reset-password
+    if (hash && (hash.includes('error=') || hash.includes('access_token='))) {
+      navigate('/reset-password', { replace: true })
+      return
+    }
+  }, [navigate])
+
   const [videos, setVideos] = useState<Video[]>([]);
   const [videoLoading, setVideoLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
